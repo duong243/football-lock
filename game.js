@@ -100,7 +100,7 @@ function createGoal(zPos) {
 scene.add(createGoal(-FIELD_L/2));
 scene.add(createGoal(FIELD_L/2));
 
-// ===== CẦU THỦ (MINECRAFT STYLE + ANIMATION) =====
+// ===== CẦU THỦ (MINECRAFT STYLE) =====
 let playerGroup;
 let leftLeg, rightLeg, leftArm, rightArm;
 
@@ -109,16 +109,14 @@ function createMinecraftPlayer(color) {
   
   const bodyMat = new THREE.MeshStandardMaterial({ color });
   const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
-  const limbMat = new THREE.MeshStandardMaterial({ color: 0x1a5c1a }); // Màu quần áo tay chân
+  const limbMat = new THREE.MeshStandardMaterial({ color: 0x1a5c1a });
 
-  // Đầu (Box)
   const headGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
   const head = new THREE.Mesh(headGeo, skinMat);
   head.position.y = 2.4;
   head.castShadow = true;
   playerGroup.add(head);
 
-  // Mắt (để biết hướng nhìn)
   const eyeGeo = new THREE.BoxGeometry(0.15, 0.15, 0.05);
   const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
   const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
@@ -128,19 +126,17 @@ function createMinecraftPlayer(color) {
   rightEye.position.set(0.2, 2.45, 0.41);
   playerGroup.add(rightEye);
 
-  // Thân (Box)
   const bodyGeo = new THREE.BoxGeometry(0.9, 1.2, 0.5);
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.position.y = 1.4;
   body.castShadow = true;
   playerGroup.add(body);
 
-  // Chân (Tạo Group để xoay quanh háng)
   const legGeo = new THREE.BoxGeometry(0.35, 1, 0.35);
   
   leftLeg = new THREE.Group();
   const lLegMesh = new THREE.Mesh(legGeo, limbMat);
-  lLegMesh.position.y = -0.5; // Đưa xuống dưới
+  lLegMesh.position.y = -0.5;
   lLegMesh.castShadow = true;
   leftLeg.add(lLegMesh);
   leftLeg.position.set(-0.25, 0.8, 0);
@@ -154,7 +150,6 @@ function createMinecraftPlayer(color) {
   rightLeg.position.set(0.25, 0.8, 0);
   playerGroup.add(rightLeg);
 
-  // Tay (Tạo Group để xoay quanh vai)
   const armGeo = new THREE.BoxGeometry(0.25, 1, 0.25);
   
   leftArm = new THREE.Group();
@@ -196,23 +191,25 @@ ctx.fillStyle = 'black';
 for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(Math.random()*256, Math.random()*256, 20, 0, Math.PI*2); ctx.fill(); }
 ballMat.map = new THREE.CanvasTexture(ballCanvas);
 
-// ===== VẬT LÝ & TRẠNG THÁI =====
+// ===== VẬT LÝ BÓNG =====
 const ballPhysics = {
   velocity: new THREE.Vector3(0, 0, 0),
   radius: 0.4,
   friction: 0.985,
   bounce: 0.6,
-  gravity: -20
+  gravity: -20,
+  isControlled: false // Trạng thái bóng đang dính chân hay không
 };
 
+// ===== ĐIỀU KHIỂN =====
 const keys = {};
 document.addEventListener('keydown', e => keys[e.code] = true);
 document.addEventListener('keyup', e => keys[e.code] = false);
 
 const playerSpeed = 12;
 const sprintMultiplier = 1.8;
-let walkTime = 0; // Biến dùng cho animation
-let kickTimer = 0; // Đếm ngược thời gian animation sút
+let walkTime = 0;
+let kickTimer = 0;
 
 const cameraOffset = new THREE.Vector3(0, 8, 12);
 const cameraTarget = new THREE.Vector3();
@@ -247,17 +244,17 @@ function updatePlayer(dt) {
   if (keys['KeyD']) dir.x += 1;
   
   const isMoving = dir.length() > 0;
+  let moveDistance = 0;
 
   if (isMoving) {
     dir.normalize();
-    player.position.x += dir.x * speed * dt;
-    player.position.z += dir.z * speed * dt;
+    moveDistance = speed * dt;
+    player.position.x += dir.x * moveDistance;
+    player.position.z += dir.z * moveDistance;
     
-    // Xoay người về hướng đi
     const targetAngle = Math.atan2(dir.x, dir.z);
     player.rotation.y = THREE.MathUtils.lerp(player.rotation.y, targetAngle, 0.2);
     
-    // ANIMATION CHẠY (Tay chân đưa qua lại)
     walkTime += dt * speed * 1.5;
     const swing = Math.sin(walkTime) * 0.8;
     leftLeg.rotation.x = swing;
@@ -265,80 +262,96 @@ function updatePlayer(dt) {
     leftArm.rotation.x = -swing;
     rightArm.rotation.x = swing;
   } else {
-    // Trả tay chân về vị trí cũ khi đứng im
     leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.2);
     rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.2);
     leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.2);
     rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.2);
   }
   
-  // Giới hạn sân
   const limitX = FIELD_W / 2 - 1;
   const limitZ = FIELD_L / 2 - 1;
   player.position.x = THREE.MathUtils.clamp(player.position.x, -limitX, limitX);
   player.position.z = THREE.MathUtils.clamp(player.position.z, -limitZ, limitZ);
   
-  // ANIMATION SÚT BÓNG
+  // Xử lý SÚT BÓNG
   if (kickTimer > 0) {
     kickTimer -= dt;
-    // Chân phải đá lên cao (góc âm)
     rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, -1.5, 0.5);
-    rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 1.5, 0.5); // Tay trái đưa ra sau giữ thăng bằng
-  } else {
-    // Kiểm tra nút Space
-    if (keys['Space'] && !isMoving) {
-      const ballPos2D = new THREE.Vector2(ball.position.x, ball.position.z);
-      const playerPos2D = new THREE.Vector2(player.position.x, player.position.z);
-      if (ballPos2D.distanceTo(playerPos2D) < 2.5) {
-        const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
-        ballPhysics.velocity.x = kickDir.x * 30;
-        ballPhysics.velocity.z = kickDir.z * 30;
-        ballPhysics.velocity.y = 8;
-        
-        kickTimer = 0.3; // Kích hoạt animation sút trong 0.3 giây
-        keys['Space'] = false; // Chống spam
-      }
-    }
+    rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 1.5, 0.5);
+  } else if (keys['Space'] && ballPhysics.isControlled) {
+    // Nếu đang giữ bóng và bấm Space -> SÚT
+    const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
+    ballPhysics.velocity.x = kickDir.x * 30;
+    ballPhysics.velocity.z = kickDir.z * 30;
+    ballPhysics.velocity.y = 8;
+    
+    ballPhysics.isControlled = false; // Thả bóng ra
+    kickTimer = 0.3;
+    keys['Space'] = false;
   }
   
-  // Dribble
-  const ballDist = new THREE.Vector2(ball.position.x - player.position.x, ball.position.z - player.position.z).length();
-  if (ballDist < 1.2 && ballPhysics.velocity.length() < 5) {
-    const pushDir = new THREE.Vector3(ball.position.x - player.position.x, 0, ball.position.z - player.position.z).normalize();
-    ballPhysics.velocity.x += pushDir.x * 15 * dt;
-    ballPhysics.velocity.z += pushDir.z * 15 * dt;
+  // XỬ LÝ DÍNH BÓNG (DRIBBLE)
+  // Nếu bóng chưa bị bắt, và người chơi lại gần
+  const ballPos2D = new THREE.Vector2(ball.position.x, ball.position.z);
+  const playerPos2D = new THREE.Vector2(player.position.x, player.position.z);
+  const dist = ballPos2D.distanceTo(playerPos2D);
+
+  if (!ballPhysics.isControlled && dist < 1.5) {
+    ballPhysics.isControlled = true; // Bắt đầu dính bóng
+    ballPhysics.velocity.set(0, 0, 0); // Triệt tiêu vận tốc cũ
+  }
+
+  // Nếu bóng đang dính chân, cập nhật vị trí bóng theo người chơi
+  if (ballPhysics.isControlled) {
+    const forwardDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
+    // Đặt bóng ở phía trước mặt người chơi 1 khoảng
+    const targetBallPos = player.position.clone().add(forwardDir.multiplyScalar(0.8));
+    targetBallPos.y = ballPhysics.radius; // Giữ bóng trên mặt đất
+    
+    // Di chuyển bóng mượt mà về vị trí dưới chân
+    ball.position.lerp(targetBallPos, 0.5);
+
+    // Xoay bóng lăn theo hướng di chuyển
+    if (isMoving) {
+      const axis = new THREE.Vector3(forwardDir.z, 0, -forwardDir.x).normalize();
+      ball.rotateOnWorldAxis(axis, (moveDistance / ballPhysics.radius) * 1.5);
+    }
   }
 }
 
 function updateBall(dt) {
-  ballPhysics.velocity.y += ballPhysics.gravity * dt;
-  ball.position.x += ballPhysics.velocity.x * dt;
-  ball.position.y += ballPhysics.velocity.y * dt;
-  ball.position.z += ballPhysics.velocity.z * dt;
-  
-  if (ball.position.y < ballPhysics.radius) {
-    ball.position.y = ballPhysics.radius;
-    if (Math.abs(ballPhysics.velocity.y) > 1) ballPhysics.velocity.y = -ballPhysics.velocity.y * ballPhysics.bounce;
-    else ballPhysics.velocity.y = 0;
-    ballPhysics.velocity.x *= ballPhysics.friction;
-    ballPhysics.velocity.z *= ballPhysics.friction;
-  }
-  
-  const limitX = FIELD_W / 2 - ballPhysics.radius;
-  const limitZ = FIELD_L / 2 - ballPhysics.radius;
-  if (Math.abs(ball.position.x) > limitX) {
-    ball.position.x = Math.sign(ball.position.x) * limitX;
-    ballPhysics.velocity.x *= -0.7;
-  }
-  if (Math.abs(ball.position.z) > limitZ && Math.abs(ball.position.x) > 7) {
-    ball.position.z = Math.sign(ball.position.z) * limitZ;
-    ballPhysics.velocity.z *= -0.7;
-  }
-  
-  const speed = ballPhysics.velocity.length();
-  if (speed > 0.1) {
-    const axis = new THREE.Vector3(ballPhysics.velocity.z, 0, -ballPhysics.velocity.x).normalize();
-    ball.rotateOnWorldAxis(axis, speed * dt * 0.5);
+  // Chỉ áp dụng vật lý khi bóng KHÔNG bị dính chân
+  if (!ballPhysics.isControlled) {
+    ballPhysics.velocity.y += ballPhysics.gravity * dt;
+    ball.position.x += ballPhysics.velocity.x * dt;
+    ball.position.y += ballPhysics.velocity.y * dt;
+    ball.position.z += ballPhysics.velocity.z * dt;
+    
+    if (ball.position.y < ballPhysics.radius) {
+      ball.position.y = ballPhysics.radius;
+      if (Math.abs(ballPhysics.velocity.y) > 1) ballPhysics.velocity.y = -ballPhysics.velocity.y * ballPhysics.bounce;
+      else ballPhysics.velocity.y = 0;
+      ballPhysics.velocity.x *= ballPhysics.friction;
+      ballPhysics.velocity.z *= ballPhysics.friction;
+    }
+    
+    const limitX = FIELD_W / 2 - ballPhysics.radius;
+    const limitZ = FIELD_L / 2 - ballPhysics.radius;
+    if (Math.abs(ball.position.x) > limitX) {
+      ball.position.x = Math.sign(ball.position.x) * limitX;
+      ballPhysics.velocity.x *= -0.7;
+    }
+    if (Math.abs(ball.position.z) > limitZ && Math.abs(ball.position.x) > 7) {
+      ball.position.z = Math.sign(ball.position.z) * limitZ;
+      ballPhysics.velocity.z *= -0.7;
+    }
+    
+    // Xoay bóng khi lăn tự do
+    const speed = ballPhysics.velocity.length();
+    if (speed > 0.1) {
+      const axis = new THREE.Vector3(ballPhysics.velocity.z, 0, -ballPhysics.velocity.x).normalize();
+      ball.rotateOnWorldAxis(axis, speed * dt * 0.5);
+    }
   }
 }
 
@@ -370,6 +383,7 @@ function checkGoals() {
 function resetBall() {
   ball.position.set(0, ballPhysics.radius, 0);
   ballPhysics.velocity.set(0, 0, 0);
+  ballPhysics.isControlled = false; // Reset trạng thái dính bóng
   player.position.set(0, 0, 20);
   player.rotation.y = 0;
 }
