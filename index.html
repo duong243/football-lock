@@ -11,7 +11,7 @@
     #score { background: rgba(0,0,0,0.6); padding: 10px 30px; border-radius: 10px; border: 2px solid #00aaff; }
     #timer { background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 10px; border: 2px solid #ffaa00; }
     
-    #hint { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(200,0,0,0.8); padding: 10px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; z-index: 10; border: 2px solid white; text-align: center; line-height: 1.5; width: 80%; max-width: 800px;}
+    #hint { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(200,0,0,0.8); padding: 10px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; z-index: 10; border: 2px solid white; text-align: center; line-height: 1.5; width: 80%; max-width: 900px;}
     #status { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); color: #ffeb3b; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 2px black; z-index: 10; }
     
     #powerBarContainer {
@@ -25,8 +25,8 @@
     }
     #shotTypeIndicator {
       position: fixed; bottom: 115px; left: 50%; transform: translateX(-50%);
-      color: #00ffff; font-size: 18px; font-weight: bold; display: none; z-index: 10;
-      text-shadow: 1px 1px 2px black;
+      color: #00ffff; font-size: 20px; font-weight: bold; display: none; z-index: 10;
+      text-shadow: 2px 2px 2px black;
     }
   </style>
 </head>
@@ -44,10 +44,10 @@
   <div id="hint">
     WASD di chuyển • SHIFT chạy nhanh • K rê bóng / đảo chân<br>
     <b>Giữ J để sút (Nhả J để đá):</b><br>
-    - Không bấm gì thêm: Sút thường<br>
-    - Giữ A/D: <span style="color:#00ffff">Sút xoáy (Curve)</span><br>
-    - Giữ S: <span style="color:#ff0000">Sút sấm sét (Knuckleball)</span><br>
-    - Giữ W: <span style="color:#ffaa00">Sút bổng (Volley)</span>
+    - Sút thường (Không bấm gì): Tốc độ vừa, bay thẳng.<br>
+    - <span style="color:#00ffff">Sút xoáy (Giữ A/D): Cong vòng cung, tốc độ chậm.</span><br>
+    - <span style="color:#ff3333">Sút sấm sét (Giữ S): Cực nhanh, bay thẳng, lắc lư.</span><br>
+    - <span style="color:#ffaa00">Sút bổng (Giữ W): Bay cao vút, cắm xuống.</span>
   </div>
   
   <script type="importmap">
@@ -128,18 +128,16 @@
     }
     const player = createPlayer(0x0066ff); player.position.set(0, 0, 20); scene.add(player);
 
-    // Bóng và Trail (Vệt sáng)
     const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
     const ball = new THREE.Mesh(new THREE.SphereGeometry(0.4, 24, 24), ballMat);
     ball.castShadow = true; ball.position.set(0, 0.4, 0); scene.add(ball);
     
-    // Texture bóng
     const ballCanvas = document.createElement('canvas'); ballCanvas.width = 256; ballCanvas.height = 256;
     const ctx = ballCanvas.getContext('2d'); ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 256, 256); ctx.fillStyle = 'black';
     for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(Math.random()*256, Math.random()*256, 20, 0, Math.PI*2); ctx.fill(); }
     ballMat.map = new THREE.CanvasTexture(ballCanvas);
 
-    // Vật lý
+    // HỆ THỐNG VẬT LÝ
     const ballPhysics = { 
       velocity: new THREE.Vector3(0, 0, 0), 
       radius: 0.4, 
@@ -147,13 +145,19 @@
       bounce: 0.6, 
       gravity: -20, 
       isControlled: false,
+      
+      // Các trạng thái sút
+      shotType: 'none', // 'normal', 'curve', 'knuckle', 'volley'
+      
+      // Thuộc tính cho Curve
       isCurving: false,
       curveTime: 0,
-      curveDuration: 1.0,
+      curveDuration: 1.2,
       curveAmount: 0,
       startPos: new THREE.Vector3(),
       targetPos: new THREE.Vector3(),
-      // Thuộc tính cho sút sấm sét (Knuckleball)
+
+      // Thuộc tính cho Knuckle
       isKnuckle: false,
       knuckleTime: 0,
       trailActive: false
@@ -189,52 +193,80 @@
     document.addEventListener('keyup', e => {
       keys[e.code] = false;
       
-      // XỬ LÝ SÚT
+      // XỬ LÝ KHI NHẢ NÚT SÚT (J)
       if (e.code === 'KeyJ' && isCharging) {
         isCharging = false;
         powerBarContainer.style.display = 'none';
         shotTypeIndicator.style.display = 'none';
         
-        const finalPower = 15 + (chargePower * 30); // Lực sút tối đa 45
+        const finalPower = 20 + (chargePower * 30); // Lực cơ bản: 20 -> 50
         const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
         
         ballPhysics.isControlled = false; 
         ballPhysics.isCurving = false;
         ballPhysics.isKnuckle = false;
         ballPhysics.trailActive = false;
+        ballPhysics.shotType = 'normal';
 
-        // 1. SÚT XOÁY (Curve)
+        // ==========================================
+        // 1. SÚT XOÁY (CURVE) - Bấm A/D
+        // ĐẶC ĐIỂM: Tốc độ CHẬM, Quỹ đạo CONG, bay bổng nhẹ
+        // ==========================================
         if ((keys['KeyA'] || keys['KeyD']) && chargePower > 0.1) {
+          ballPhysics.shotType = 'curve';
           let curveDir = keys['KeyA'] ? -1 : 1;
+          
           ballPhysics.isCurving = true;
           ballPhysics.curveTime = 0;
-          ballPhysics.curveAmount = curveDir * 15; 
+          ballPhysics.curveAmount = curveDir * 20; // Độ cong rất lớn
           ballPhysics.startPos.copy(ball.position);
           
-          const targetDist = finalPower * 1.5;
+          // Tốc độ bay chậm hơn sút thường (Chỉ bằng 60%)
+          const curveSpeed = finalPower * 0.6; 
+          const targetDist = curveSpeed * 1.5; 
+          
           ballPhysics.targetPos.copy(ball.position).add(kickDir.clone().multiplyScalar(targetDist));
-          ballPhysics.velocity.set(kickDir.x * finalPower, 5 + chargePower * 3, kickDir.z * finalPower);
+          
+          // Vận tốc dự phòng (nếu hết cong sẽ tiếp tục bay)
+          ballPhysics.velocity.set(kickDir.x * curveSpeed, 5, kickDir.z * curveSpeed);
           ballPhysics.trailActive = true;
         } 
-        // 2. SÚT SẤM SÉT (Knuckleball - Bấm S)
+        // ==========================================
+        // 2. SÚT SẤM SÉT (KNUCKLE) - Bấm S
+        // ĐẶC ĐIỂM: Tốc độ CỰC NHANH, bay thẳng, LẮC LƯ
+        // ==========================================
         else if (keys['KeyS'] && chargePower > 0.1) {
+          ballPhysics.shotType = 'knuckle';
           ballPhysics.isKnuckle = true;
           ballPhysics.knuckleTime = 0;
-          // Bóng bay cực mạnh nhưng lực nâng ít
-          ballPhysics.velocity.set(kickDir.x * 55, 3, kickDir.z * 55);
+          
+          // Tốc độ cực mạnh (Gấp rưỡi sút thường)
+          const knuckleSpeed = finalPower * 1.5;
+          // Độ cao rất thấp (chỉ nhích lên một chút để lướt trên cỏ)
+          ballPhysics.velocity.set(kickDir.x * knuckleSpeed, 2 + chargePower * 2, kickDir.z * knuckleSpeed);
           ballPhysics.trailActive = true;
         }
-        // 3. SÚT BỔNG (Volley - Bấm W)
+        // ==========================================
+        // 3. SÚT BỔNG (VOLLEY) - Bấm W
+        // ĐẶC ĐIỂM: Bay CỰC CAO, vòng cung hẹp, cắm xuống
+        // ==========================================
         else if (keys['KeyW'] && chargePower > 0.1) {
-          // Lực nâng cực cao
-          ballPhysics.velocity.set(kickDir.x * 25, 25 + chargePower * 10, kickDir.z * 25);
+          ballPhysics.shotType = 'volley';
+          // Lực nâng cực cao (Trục Y), lực đẩy tới (Trục X,Z) trung bình
+          const volleySpeed = finalPower * 0.8;
+          const highLift = 20 + (chargePower * 15); 
+          ballPhysics.velocity.set(kickDir.x * volleySpeed, highLift, kickDir.z * volleySpeed);
           ballPhysics.trailActive = true;
         }
-        // 4. SÚT THƯỜNG
+        // ==========================================
+        // 4. SÚT THƯỜNG - Không bấm gì
+        // ĐẶC ĐIỂM: Tốc độ VỪA PHẢI, bay thẳng tắp
+        // ==========================================
         else {
+          ballPhysics.shotType = 'normal';
           ballPhysics.velocity.x = kickDir.x * finalPower;
           ballPhysics.velocity.z = kickDir.z * finalPower;
-          ballPhysics.velocity.y = 4 + (chargePower * 3);
+          ballPhysics.velocity.y = 3 + (chargePower * 3); // Hơi bổng nhẹ
           if (chargePower > 0.5) ballPhysics.trailActive = true;
         }
 
@@ -262,17 +294,17 @@
       if (keys['KeyW']) dir.z -= 1; if (keys['KeyS']) dir.z += 1; if (keys['KeyA']) dir.x -= 1; if (keys['KeyD']) dir.x += 1;
       const isMoving = dir.length() > 0; let moveDistance = 0;
 
-      // Cập nhật UI khi tích lực
+      // Cập nhật UI
       if (isCharging) {
         chargePower = Math.min(1, chargePower + dt * 1.5);
         powerBar.style.width = (chargePower * 100) + '%';
         
         shotTypeIndicator.style.display = 'block';
-        if (keys['KeyA']) { shotTypeIndicator.textContent = "Chuẩn bị: SÚT XOÁY TRÁI"; shotTypeIndicator.style.color = "#00ffff"; }
-        else if (keys['KeyD']) { shotTypeIndicator.textContent = "Chuẩn bị: SÚT XOÁY PHẢI"; shotTypeIndicator.style.color = "#00ffff"; }
-        else if (keys['KeyS']) { shotTypeIndicator.textContent = "Chuẩn bị: SÚT SẤM SÉT (KNUCKLE)"; shotTypeIndicator.style.color = "#ff3333"; }
-        else if (keys['KeyW']) { shotTypeIndicator.textContent = "Chuẩn bị: SÚT BỔNG (VOLLEY)"; shotTypeIndicator.style.color = "#ffaa00"; }
-        else { shotTypeIndicator.textContent = "Chuẩn bị: SÚT THƯỜNG"; shotTypeIndicator.style.color = "#ffffff"; }
+        if (keys['KeyA']) { shotTypeIndicator.textContent = "SÚT XOÁY TRÁI (Chậm, Cong)"; shotTypeIndicator.style.color = "#00ffff"; }
+        else if (keys['KeyD']) { shotTypeIndicator.textContent = "SÚT XOÁY PHẢI (Chậm, Cong)"; shotTypeIndicator.style.color = "#00ffff"; }
+        else if (keys['KeyS']) { shotTypeIndicator.textContent = "SÚT SẤM SÉT (Cực nhanh, Lắc lư)"; shotTypeIndicator.style.color = "#ff3333"; }
+        else if (keys['KeyW']) { shotTypeIndicator.textContent = "SÚT BỔNG (Cực cao, Cắm xuống)"; shotTypeIndicator.style.color = "#ffaa00"; }
+        else { shotTypeIndicator.textContent = "SÚT THƯỜNG"; shotTypeIndicator.style.color = "#ffffff"; }
       }
 
       const isSpinning = keys['KeyK'] && ballPhysics.isControlled && !isMoving;
@@ -299,13 +331,12 @@
       const ballPos2D = new THREE.Vector2(ball.position.x, ball.position.z); const playerPos2D = new THREE.Vector2(player.position.x, player.position.z);
       const dist = ballPos2D.distanceTo(playerPos2D);
       
-      // Bắt bóng (Chỉ bắt khi bóng lăn chậm)
       const ballSpeed = ballPhysics.velocity.length();
+      // Bắt bóng
       if (!ballPhysics.isControlled && dist < 1.5 && ball.position.y <= ballPhysics.radius + 0.1 && dribbleCooldown <= 0 && ballSpeed < 25) {
         ballPhysics.isControlled = true; ballPhysics.velocity.set(0, 0, 0); ballPhysics.isCurving = false; ballPhysics.isKnuckle = false; ballPhysics.trailActive = false;
       }
 
-      // Xử lý hiển thị bóng dính chân
       if (ballPhysics.isControlled) {
         statusEl.textContent = isSpinning ? "Đang đảo chân giữ bóng..." : "Trạng thái: Đang giữ bóng"; 
         statusEl.style.color = "#00ff00";
@@ -338,32 +369,30 @@
     }
 
     function updateBall(dt) {
-      // Hiệu ứng vệt sáng (Trail)
+      // Vệt sáng (Trail)
       if (ballPhysics.trailActive && !ballPhysics.isControlled) {
-        if (Math.random() > 0.5) { // Giảm tần suất tạo hạt cho mượt
+        if (Math.random() > 0.4) {
           const trailGeo = new THREE.SphereGeometry(0.15, 8, 8);
-          const trailMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 });
+          const trailMat = new THREE.MeshBasicMaterial({ 
+            color: ballPhysics.shotType === 'knuckle' ? 0xff3333 : (ballPhysics.shotType === 'curve' ? 0x00ffff : 0xffffff), 
+            transparent: true, opacity: 0.7 
+          });
           const trailMesh = new THREE.Mesh(trailGeo, trailMat);
           trailMesh.position.copy(ball.position);
           scene.add(trailMesh);
-          
-          setTimeout(() => {
-            scene.remove(trailMesh);
-            trailMesh.geometry.dispose();
-            trailMesh.material.dispose();
-          }, 300);
+          setTimeout(() => { scene.remove(trailMesh); trailMesh.geometry.dispose(); trailMesh.material.dispose(); }, 300);
         }
       }
 
       if (!ballPhysics.isControlled) {
-        // XỬ LÝ ĐƯỜNG CONG (SÚT XOÁY)
+        // 1. VẬT LÝ SÚT XOÁY (BEZIER CURVE)
         if (ballPhysics.isCurving) {
           ballPhysics.curveTime += dt;
           const t = Math.min(ballPhysics.curveTime / ballPhysics.curveDuration, 1);
           
           const controlPoint = ballPhysics.startPos.clone().add(ballPhysics.targetPos).multiplyScalar(0.5);
-          controlPoint.y += 6; 
-          controlPoint.x += ballPhysics.curveAmount;
+          controlPoint.y += 8; // Bay bổng lên
+          controlPoint.x += ballPhysics.curveAmount; // Bẻ cong sang ngang
 
           const pos = new THREE.Vector3();
           pos.x = Math.pow(1-t, 2) * ballPhysics.startPos.x + 2*(1-t)*t*controlPoint.x + Math.pow(t, 2) * ballPhysics.targetPos.x;
@@ -372,31 +401,26 @@
           
           ball.position.lerp(pos, 0.5);
 
-          if (t >= 1) {
-            ballPhysics.isCurving = false; 
-            ballPhysics.trailActive = false;
-          }
+          if (t >= 1) { ballPhysics.isCurving = false; ballPhysics.trailActive = false; }
         } 
-        // XỬ LÝ SÚT SẤM SÉT (KNUCKLEBALL LẮC LƯ)
+        // 2. VẬT LÝ SÚT SẤM SÉT (KNUCKLE - LẮC LƯ)
         else if (ballPhysics.isKnuckle) {
           ballPhysics.knuckleTime += dt;
           ballPhysics.velocity.y += ballPhysics.gravity * dt;
           
-          // Tạo độ lắc lư (Bập bùng) bằng hàm Sin/Cos
-          ballPhysics.velocity.x += Math.sin(ballPhysics.knuckleTime * 30) * 15 * dt;
-          ballPhysics.velocity.z += Math.cos(ballPhysics.knuckleTime * 25) * 15 * dt;
+          // Tạo lực lắc lư ngẫu nhiên (Ziczac)
+          ballPhysics.velocity.x += Math.sin(ballPhysics.knuckleTime * 40) * 20 * dt;
+          ballPhysics.velocity.z += Math.cos(ballPhysics.knuckleTime * 35) * 20 * dt;
 
           ball.position.x += ballPhysics.velocity.x * dt; 
           ball.position.y += ballPhysics.velocity.y * dt; 
           ball.position.z += ballPhysics.velocity.z * dt;
 
           if (ball.position.y < ballPhysics.radius) {
-            ballPhysics.isKnuckle = false; // Chạm đất là hết lắc
-            ballPhysics.velocity.y = 0;
-            ballPhysics.trailActive = false;
+            ballPhysics.isKnuckle = false; ballPhysics.velocity.y = 0; ballPhysics.trailActive = false;
           }
         }
-        // VẬT LÝ BÌNH THƯỜNG
+        // 3. VẬT LÝ TỰ DO (SÚT THƯỜNG, SÚT BỔNG)
         else {
           ballPhysics.velocity.y += ballPhysics.gravity * dt;
           ball.position.x += ballPhysics.velocity.x * dt; 
@@ -407,8 +431,6 @@
             ball.position.y = ballPhysics.radius;
             if (Math.abs(ballPhysics.velocity.y) > 1) ballPhysics.velocity.y = -ballPhysics.velocity.y * ballPhysics.bounce; else ballPhysics.velocity.y = 0;
             ballPhysics.velocity.x *= ballPhysics.friction; ballPhysics.velocity.z *= ballPhysics.friction;
-            
-            // Nếu chạm đất thì tắt trail
             if (ballPhysics.velocity.y === 0) ballPhysics.trailActive = false;
           }
         }
@@ -420,7 +442,6 @@
         const speed = ballPhysics.velocity.length();
         if (speed > 0.1) { 
           const axis = new THREE.Vector3(ballPhysics.velocity.z, 0, -ballPhysics.velocity.x).normalize(); 
-          // Bóng xoay nhanh hơn khi bay
           ball.rotateOnWorldAxis(axis, speed * dt * 0.5); 
         }
       }
