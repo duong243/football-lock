@@ -198,12 +198,16 @@ const ballPhysics = {
   friction: 0.985,
   bounce: 0.6,
   gravity: -20,
-  isControlled: false // Trạng thái bóng đang dính chân hay không
+  isControlled: false // Trạng thái bóng đang dính chân
 };
 
 // ===== ĐIỀU KHIỂN =====
 const keys = {};
-document.addEventListener('keydown', e => keys[e.code] = true);
+document.addEventListener('keydown', e => {
+  // Ngăn trình duyệt cuộn trang khi bấm Space
+  if (e.code === 'Space') e.preventDefault(); 
+  keys[e.code] = true;
+});
 document.addEventListener('keyup', e => keys[e.code] = false);
 
 const playerSpeed = 12;
@@ -273,45 +277,43 @@ function updatePlayer(dt) {
   player.position.x = THREE.MathUtils.clamp(player.position.x, -limitX, limitX);
   player.position.z = THREE.MathUtils.clamp(player.position.z, -limitZ, limitZ);
   
-  // Xử lý SÚT BÓNG
+  // ===== XỬ LÝ SÚT BÓNG =====
   if (kickTimer > 0) {
     kickTimer -= dt;
     rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, -1.5, 0.5);
     rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 1.5, 0.5);
   } else if (keys['Space'] && ballPhysics.isControlled) {
-    // Nếu đang giữ bóng và bấm Space -> SÚT
+    // Đang giữ bóng + bấm Space -> SÚT (cho phép sút cả khi đang chạy)
     const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
-    ballPhysics.velocity.x = kickDir.x * 30;
-    ballPhysics.velocity.z = kickDir.z * 30;
-    ballPhysics.velocity.y = 8;
+    ballPhysics.velocity.x = kickDir.x * 35; // Tăng lực sút lên một chút
+    ballPhysics.velocity.z = kickDir.z * 35;
+    ballPhysics.velocity.y = 6;
     
-    ballPhysics.isControlled = false; // Thả bóng ra
-    kickTimer = 0.3;
-    keys['Space'] = false;
+    ballPhysics.isControlled = false; // Thả bóng
+    kickTimer = 0.3; // Kích hoạt animation đá
+    keys['Space'] = false; // Reset phím để tránh sút liên tục
   }
   
-  // XỬ LÝ DÍNH BÓNG (DRIBBLE)
-  // Nếu bóng chưa bị bắt, và người chơi lại gần
+  // ===== XỬ LÝ DÍNH BÓNG (DRIBBLE) =====
   const ballPos2D = new THREE.Vector2(ball.position.x, ball.position.z);
   const playerPos2D = new THREE.Vector2(player.position.x, player.position.z);
   const dist = ballPos2D.distanceTo(playerPos2D);
 
+  // Nếu bóng chưa dính và người chơi lại gần
   if (!ballPhysics.isControlled && dist < 1.5) {
-    ballPhysics.isControlled = true; // Bắt đầu dính bóng
-    ballPhysics.velocity.set(0, 0, 0); // Triệt tiêu vận tốc cũ
+    ballPhysics.isControlled = true; 
+    ballPhysics.velocity.set(0, 0, 0); 
   }
 
-  // Nếu bóng đang dính chân, cập nhật vị trí bóng theo người chơi
+  // Cập nhật vị trí bóng khi dính chân
   if (ballPhysics.isControlled) {
     const forwardDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
-    // Đặt bóng ở phía trước mặt người chơi 1 khoảng
     const targetBallPos = player.position.clone().add(forwardDir.multiplyScalar(0.8));
-    targetBallPos.y = ballPhysics.radius; // Giữ bóng trên mặt đất
+    targetBallPos.y = ballPhysics.radius; 
     
-    // Di chuyển bóng mượt mà về vị trí dưới chân
     ball.position.lerp(targetBallPos, 0.5);
 
-    // Xoay bóng lăn theo hướng di chuyển
+    // Xoay bóng lăn
     if (isMoving) {
       const axis = new THREE.Vector3(forwardDir.z, 0, -forwardDir.x).normalize();
       ball.rotateOnWorldAxis(axis, (moveDistance / ballPhysics.radius) * 1.5);
@@ -320,7 +322,7 @@ function updatePlayer(dt) {
 }
 
 function updateBall(dt) {
-  // Chỉ áp dụng vật lý khi bóng KHÔNG bị dính chân
+  // Vật lý chỉ hoạt động khi bóng KHÔNG dính chân
   if (!ballPhysics.isControlled) {
     ballPhysics.velocity.y += ballPhysics.gravity * dt;
     ball.position.x += ballPhysics.velocity.x * dt;
@@ -346,7 +348,7 @@ function updateBall(dt) {
       ballPhysics.velocity.z *= -0.7;
     }
     
-    // Xoay bóng khi lăn tự do
+    // Xoay bóng khi bay/lăn tự do
     const speed = ballPhysics.velocity.length();
     if (speed > 0.1) {
       const axis = new THREE.Vector3(ballPhysics.velocity.z, 0, -ballPhysics.velocity.x).normalize();
@@ -383,7 +385,7 @@ function checkGoals() {
 function resetBall() {
   ball.position.set(0, ballPhysics.radius, 0);
   ballPhysics.velocity.set(0, 0, 0);
-  ballPhysics.isControlled = false; // Reset trạng thái dính bóng
+  ballPhysics.isControlled = false;
   player.position.set(0, 0, 20);
   player.rotation.y = 0;
 }
