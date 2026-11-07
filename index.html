@@ -11,11 +11,11 @@
     #score { background: rgba(0,0,0,0.6); padding: 10px 30px; border-radius: 10px; border: 2px solid #00aaff; }
     #timer { background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 10px; border: 2px solid #ffaa00; }
     
-    #hint { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(200,0,0,0.8); padding: 10px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; z-index: 10; border: 2px solid white; text-align: center; line-height: 1.5; width: 80%; max-width: 900px;}
+    #hint { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(200,0,0,0.8); padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: bold; z-index: 10; border: 2px solid white; text-align: center; line-height: 1.5; width: 90%; max-width: 1000px;}
     #status { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); color: #ffeb3b; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 2px black; z-index: 10; }
     
     #powerBarContainer {
-      position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+      position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
       width: 300px; height: 25px; background: rgba(0,0,0,0.5);
       border: 2px solid white; border-radius: 10px; display: none; z-index: 10;
     }
@@ -24,7 +24,7 @@
       border-radius: 8px; transition: width 0.05s;
     }
     #shotTypeIndicator {
-      position: fixed; bottom: 115px; left: 50%; transform: translateX(-50%);
+      position: fixed; bottom: 135px; left: 50%; transform: translateX(-50%);
       color: #00ffff; font-size: 20px; font-weight: bold; display: none; z-index: 10;
       text-shadow: 2px 2px 2px black;
     }
@@ -42,12 +42,9 @@
   <div id="powerBarContainer"><div id="powerBar"></div></div>
 
   <div id="hint">
-    WASD di chuyển • SHIFT chạy nhanh • K rê bóng / đảo chân<br>
-    <b>Giữ J để sút (Nhả J để đá):</b><br>
-    - Sút thường (Không bấm gì): Tốc độ vừa, bay thẳng.<br>
-    - <span style="color:#00ffff">Sút xoáy (Giữ A/D): Cong vòng cung, tốc độ chậm.</span><br>
-    - <span style="color:#ff3333">Sút sấm sét (Giữ S): Cực nhanh, bay thẳng, lắc lư.</span><br>
-    - <span style="color:#ffaa00">Sút bổng (Giữ W): Bay cao vút, cắm xuống.</span>
+    WASD di chuyển • SHIFT chạy nhanh • K rê bóng • <b>SPACE để nhảy</b><br>
+    <b>L để tâng bóng lên cao.</b> Khi bóng đang ở trên không, <b>giữ J + W</b> để XE ĐẠP CHỔNG NGƯỢC!<br>
+    <b>Sút trên mặt đất (Giữ J):</b> Thường • A/D (Xoáy) • S (Sấm sét) • W (Bổng)
   </div>
   
   <script type="importmap">
@@ -104,7 +101,7 @@
     }
     scene.add(createGoal(-FIELD_L/2)); scene.add(createGoal(FIELD_L/2));
 
-    let leftLeg, rightLeg, leftArm, rightArm;
+    let leftLeg, rightLeg, leftArm, rightArm, playerGroup;
     function createPlayer(color) {
       const p = new THREE.Group();
       const bodyMat = new THREE.MeshStandardMaterial({ color });
@@ -124,6 +121,8 @@
       const armGeo = new THREE.BoxGeometry(0.25, 1, 0.25);
       leftArm = new THREE.Group(); const lA = new THREE.Mesh(armGeo, bodyMat); lA.position.y = -0.5; lA.castShadow = true; leftArm.add(lA); leftArm.position.set(-0.575, 2, 0); p.add(leftArm);
       rightArm = new THREE.Group(); const rA = new THREE.Mesh(armGeo, bodyMat); rA.position.y = -0.5; rA.castShadow = true; rightArm.add(rA); rightArm.position.set(0.575, 2, 0); p.add(rightArm);
+      
+      playerGroup = p;
       return p;
     }
     const player = createPlayer(0x0066ff); player.position.set(0, 0, 20); scene.add(player);
@@ -137,7 +136,16 @@
     for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(Math.random()*256, Math.random()*256, 20, 0, Math.PI*2); ctx.fill(); }
     ballMat.map = new THREE.CanvasTexture(ballCanvas);
 
-    // HỆ THỐNG VẬT LÝ
+    // VẬT LÝ & TRẠNG THÁI CẦU THỦ
+    const playerState = {
+      velocityY: 0,
+      isJumping: false,
+      isBicycleKick: false,
+      bicycleTimer: 0,
+      bicycleTriggered: false,
+      canJump: true
+    };
+
     const ballPhysics = { 
       velocity: new THREE.Vector3(0, 0, 0), 
       radius: 0.4, 
@@ -145,22 +153,12 @@
       bounce: 0.6, 
       gravity: -20, 
       isControlled: false,
+      shotType: 'none',
       
-      // Các trạng thái sút
-      shotType: 'none', // 'normal', 'curve', 'knuckle', 'volley'
-      
-      // Thuộc tính cho Curve
-      isCurving: false,
-      curveTime: 0,
-      curveDuration: 1.2,
-      curveAmount: 0,
-      startPos: new THREE.Vector3(),
-      targetPos: new THREE.Vector3(),
+      isCurving: false, curveTime: 0, curveDuration: 1.2, curveAmount: 0,
+      startPos: new THREE.Vector3(), targetPos: new THREE.Vector3(),
 
-      // Thuộc tính cho Knuckle
-      isKnuckle: false,
-      knuckleTime: 0,
-      trailActive: false
+      isKnuckle: false, knuckleTime: 0, trailActive: false
     };
 
     const keys = {};
@@ -174,11 +172,42 @@
     const shotTypeIndicator = document.getElementById('shotTypeIndicator');
 
     document.addEventListener('keydown', e => {
-      if (e.code === 'Space') e.preventDefault(); 
+      if (e.code === 'Space') { e.preventDefault(); } 
+      
       if (!keys[e.code]) {
-        if (e.code === 'KeyJ' && ballPhysics.isControlled && kickTimer <= 0) {
-          isCharging = true; chargePower = 0; powerBarContainer.style.display = 'block';
+        // NHẢY BÌNH THƯỜNG (SPACE)
+        if (e.code === 'Space' && !playerState.isJumping && playerState.canJump) {
+          playerState.velocityY = 8;
+          playerState.isJumping = true;
         }
+
+        // TÂNG BÓNG (L)
+        if (e.code === 'KeyL' && ballPhysics.isControlled) {
+          ballPhysics.isControlled = false;
+          ballPhysics.velocity.set(
+            Math.sin(player.rotation.y) * 2, // Nhích nhẹ về trước
+            12,                              // Lực tung lên cao
+            Math.cos(player.rotation.y) * 2
+          );
+        }
+
+        // SÚT (J)
+        if (e.code === 'KeyJ' && kickTimer <= 0) {
+          // NẾU BÓNG ĐANG Ở TRÊN KHÔNG VÀ BẤM J -> XE ĐẠP CHỔNG NGƯỢC
+          if (ball.position.y > 1.5 && !ballPhysics.isControlled && !playerState.isBicycleKick) {
+            playerState.isBicycleKick = true;
+            playerState.bicycleTimer = 0;
+            playerState.bicycleTriggered = false;
+            playerState.velocityY = 10; // Nhảy vọt lên không trung
+            playerState.isJumping = true;
+          } 
+          // NẾU ĐANG GIỮ BÓNG DƯỚI ĐẤT -> TÍCH LỰC SÚT
+          else if (ballPhysics.isControlled) {
+            isCharging = true; chargePower = 0; powerBarContainer.style.display = 'block';
+          }
+        }
+
+        // RÊ BÓNG (K)
         if (e.code === 'KeyK' && ballPhysics.isControlled && kickTimer <= 0) {
           if (keys['KeyW'] || keys['KeyA'] || keys['KeyS'] || keys['KeyD']) {
             const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
@@ -193,86 +222,43 @@
     document.addEventListener('keyup', e => {
       keys[e.code] = false;
       
-      // XỬ LÝ KHI NHẢ NÚT SÚT (J)
       if (e.code === 'KeyJ' && isCharging) {
         isCharging = false;
         powerBarContainer.style.display = 'none';
         shotTypeIndicator.style.display = 'none';
         
-        const finalPower = 20 + (chargePower * 30); // Lực cơ bản: 20 -> 50
+        const finalPower = 20 + (chargePower * 30);
         const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
         
         ballPhysics.isControlled = false; 
-        ballPhysics.isCurving = false;
-        ballPhysics.isKnuckle = false;
-        ballPhysics.trailActive = false;
+        ballPhysics.isCurving = false; ballPhysics.isKnuckle = false; ballPhysics.trailActive = false;
         ballPhysics.shotType = 'normal';
 
-        // ==========================================
-        // 1. SÚT XOÁY (CURVE) - Bấm A/D
-        // ĐẶC ĐIỂM: Tốc độ CHẬM, Quỹ đạo CONG, bay bổng nhẹ
-        // ==========================================
+        // SÚT ĐẤT (Các chế độ như cũ)
         if ((keys['KeyA'] || keys['KeyD']) && chargePower > 0.1) {
           ballPhysics.shotType = 'curve';
           let curveDir = keys['KeyA'] ? -1 : 1;
-          
-          ballPhysics.isCurving = true;
-          ballPhysics.curveTime = 0;
-          ballPhysics.curveAmount = curveDir * 20; // Độ cong rất lớn
-          ballPhysics.startPos.copy(ball.position);
-          
-          // Tốc độ bay chậm hơn sút thường (Chỉ bằng 60%)
+          ballPhysics.isCurving = true; ballPhysics.curveTime = 0; ballPhysics.curveAmount = curveDir * 20; ballPhysics.startPos.copy(ball.position);
           const curveSpeed = finalPower * 0.6; 
-          const targetDist = curveSpeed * 1.5; 
-          
-          ballPhysics.targetPos.copy(ball.position).add(kickDir.clone().multiplyScalar(targetDist));
-          
-          // Vận tốc dự phòng (nếu hết cong sẽ tiếp tục bay)
+          ballPhysics.targetPos.copy(ball.position).add(kickDir.clone().multiplyScalar(curveSpeed * 1.5));
           ballPhysics.velocity.set(kickDir.x * curveSpeed, 5, kickDir.z * curveSpeed);
           ballPhysics.trailActive = true;
-        } 
-        // ==========================================
-        // 2. SÚT SẤM SÉT (KNUCKLE) - Bấm S
-        // ĐẶC ĐIỂM: Tốc độ CỰC NHANH, bay thẳng, LẮC LƯ
-        // ==========================================
-        else if (keys['KeyS'] && chargePower > 0.1) {
-          ballPhysics.shotType = 'knuckle';
-          ballPhysics.isKnuckle = true;
-          ballPhysics.knuckleTime = 0;
-          
-          // Tốc độ cực mạnh (Gấp rưỡi sút thường)
-          const knuckleSpeed = finalPower * 1.5;
-          // Độ cao rất thấp (chỉ nhích lên một chút để lướt trên cỏ)
-          ballPhysics.velocity.set(kickDir.x * knuckleSpeed, 2 + chargePower * 2, kickDir.z * knuckleSpeed);
+        } else if (keys['KeyS'] && chargePower > 0.1) {
+          ballPhysics.shotType = 'knuckle'; ballPhysics.isKnuckle = true; ballPhysics.knuckleTime = 0;
+          ballPhysics.velocity.set(kickDir.x * (finalPower * 1.5), 2 + chargePower * 2, kickDir.z * (finalPower * 1.5));
           ballPhysics.trailActive = true;
-        }
-        // ==========================================
-        // 3. SÚT BỔNG (VOLLEY) - Bấm W
-        // ĐẶC ĐIỂM: Bay CỰC CAO, vòng cung hẹp, cắm xuống
-        // ==========================================
-        else if (keys['KeyW'] && chargePower > 0.1) {
+        } else if (keys['KeyW'] && chargePower > 0.1) {
           ballPhysics.shotType = 'volley';
-          // Lực nâng cực cao (Trục Y), lực đẩy tới (Trục X,Z) trung bình
-          const volleySpeed = finalPower * 0.8;
-          const highLift = 20 + (chargePower * 15); 
-          ballPhysics.velocity.set(kickDir.x * volleySpeed, highLift, kickDir.z * volleySpeed);
+          ballPhysics.velocity.set(kickDir.x * (finalPower * 0.8), 20 + (chargePower * 15), kickDir.z * (finalPower * 0.8));
           ballPhysics.trailActive = true;
-        }
-        // ==========================================
-        // 4. SÚT THƯỜNG - Không bấm gì
-        // ĐẶC ĐIỂM: Tốc độ VỪA PHẢI, bay thẳng tắp
-        // ==========================================
-        else {
-          ballPhysics.shotType = 'normal';
+        } else {
           ballPhysics.velocity.x = kickDir.x * finalPower;
           ballPhysics.velocity.z = kickDir.z * finalPower;
-          ballPhysics.velocity.y = 3 + (chargePower * 3); // Hơi bổng nhẹ
+          ballPhysics.velocity.y = 3 + (chargePower * 3);
           if (chargePower > 0.5) ballPhysics.trailActive = true;
         }
 
-        kickTimer = 0.4; 
-        dribbleCooldown = 0.6; 
-        chargePower = 0;
+        kickTimer = 0.4; dribbleCooldown = 0.6; chargePower = 0;
       }
     });
 
@@ -294,46 +280,100 @@
       if (keys['KeyW']) dir.z -= 1; if (keys['KeyS']) dir.z += 1; if (keys['KeyA']) dir.x -= 1; if (keys['KeyD']) dir.x += 1;
       const isMoving = dir.length() > 0; let moveDistance = 0;
 
-      // Cập nhật UI
+      // TRỌNG LỰC CẦU THỦ (NHẢY)
+      playerState.velocityY += -25 * dt; // Trọng lực
+      player.position.y += playerState.velocityY * dt;
+      
+      if (player.position.y <= 0) {
+        player.position.y = 0;
+        playerState.velocityY = 0;
+        playerState.isJumping = false;
+      }
+
       if (isCharging) {
         chargePower = Math.min(1, chargePower + dt * 1.5);
         powerBar.style.width = (chargePower * 100) + '%';
-        
         shotTypeIndicator.style.display = 'block';
-        if (keys['KeyA']) { shotTypeIndicator.textContent = "SÚT XOÁY TRÁI (Chậm, Cong)"; shotTypeIndicator.style.color = "#00ffff"; }
-        else if (keys['KeyD']) { shotTypeIndicator.textContent = "SÚT XOÁY PHẢI (Chậm, Cong)"; shotTypeIndicator.style.color = "#00ffff"; }
-        else if (keys['KeyS']) { shotTypeIndicator.textContent = "SÚT SẤM SÉT (Cực nhanh, Lắc lư)"; shotTypeIndicator.style.color = "#ff3333"; }
-        else if (keys['KeyW']) { shotTypeIndicator.textContent = "SÚT BỔNG (Cực cao, Cắm xuống)"; shotTypeIndicator.style.color = "#ffaa00"; }
+        if (keys['KeyA']) { shotTypeIndicator.textContent = "SÚT XOÁY TRÁI"; shotTypeIndicator.style.color = "#00ffff"; }
+        else if (keys['KeyD']) { shotTypeIndicator.textContent = "SÚT XOÁY PHẢI"; shotTypeIndicator.style.color = "#00ffff"; }
+        else if (keys['KeyS']) { shotTypeIndicator.textContent = "SÚT SẤM SÉT"; shotTypeIndicator.style.color = "#ff3333"; }
+        else if (keys['KeyW']) { shotTypeIndicator.textContent = "SÚT BỔNG"; shotTypeIndicator.style.color = "#ffaa00"; }
         else { shotTypeIndicator.textContent = "SÚT THƯỜNG"; shotTypeIndicator.style.color = "#ffffff"; }
       }
 
-      const isSpinning = keys['KeyK'] && ballPhysics.isControlled && !isMoving;
+      const isSpinning = keys['KeyK'] && ballPhysics.isControlled && !isMoving && !playerState.isJumping;
 
-      if (isMoving && !isCharging) {
+      // DI CHUYỂN & ANIMATION
+      if (isMoving && !isCharging && !playerState.isJumping) {
         dir.normalize(); moveDistance = speed * dt; player.position.x += dir.x * moveDistance; player.position.z += dir.z * moveDistance;
         const targetAngle = Math.atan2(dir.x, dir.z); player.rotation.y = THREE.MathUtils.lerp(player.rotation.y, targetAngle, 0.2);
         walkTime += dt * speed * 1.5; const swing = Math.sin(walkTime) * 0.8;
         leftLeg.rotation.x = swing; rightLeg.rotation.x = -swing; leftArm.rotation.x = -swing; rightArm.rotation.x = swing;
+        player.rotation.x = 0; // Reset lật người
+      } else if (playerState.isJumping) {
+        // Tư thế trên không
+        leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0.5, 0.2);
+        rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, -0.5, 0.2);
+        leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, -1, 0.2);
+        rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, -1, 0.2);
       } else if (!isSpinning) {
         leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.2); rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.2);
         leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.2); rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.2);
+        player.rotation.x = THREE.MathUtils.lerp(player.rotation.x, 0, 0.1); // Từ từ đứng thẳng lại
       }
-      
+
+      // XỬ LÝ XE ĐẠP CHỔNG NGƯỢC
+      if (playerState.isBicycleKick) {
+        playerState.bicycleTimer += dt;
+        
+        // Lật ngược người ra sau (Trục X)
+        player.rotation.x = THREE.MathUtils.lerp(player.rotation.x, -Math.PI / 1.5, 0.2);
+        
+        // Chân đá liên hoàn (Xoay tròn)
+        const kickSpin = playerState.bicycleTimer * 20;
+        leftLeg.rotation.x = Math.sin(kickSpin) * 1.5;
+        rightLeg.rotation.x = -Math.sin(kickSpin) * 1.5;
+        leftArm.rotation.x = Math.cos(kickSpin) * 1.5;
+        rightArm.rotation.x = -Math.cos(kickSpin) * 1.5;
+
+        // Kích hoạt lực sút vào khoảng giây thứ 0.2 (Lúc chân vung lên cao nhất)
+        if (playerState.bicycleTimer > 0.15 && !playerState.bicycleTriggered) {
+          playerState.bicycleTriggered = true;
+          
+          // Sút bóng bay đi
+          const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
+          ballPhysics.velocity.x = kickDir.x * 40;
+          ballPhysics.velocity.z = kickDir.z * 40;
+          ballPhysics.velocity.y = 5; // Hơi chúc xuống
+          
+          ballPhysics.isControlled = false;
+          ballPhysics.trailActive = true;
+          ballPhysics.shotType = 'bicycle';
+          
+          flashScreen(0xffff00); // Chớp sáng vàng
+        }
+
+        // Kết thúc animation sau 1 giây
+        if (playerState.bicycleTimer > 1.0) {
+          playerState.isBicycleKick = false;
+          playerState.bicycleTriggered = false;
+          player.rotation.x = 0; // Đứng thẳng lại
+        }
+      }
+
       const limitX = FIELD_W / 2 - 1; const limitZ = FIELD_L / 2 - 1;
       player.position.x = THREE.MathUtils.clamp(player.position.x, -limitX, limitX); player.position.z = THREE.MathUtils.clamp(player.position.z, -limitZ, limitZ);
       
-      if (kickTimer > 0) {
-        kickTimer -= dt; 
-        rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, -1.5, 0.5); rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 1.5, 0.5);
-      }
+      if (kickTimer > 0) { kickTimer -= dt; }
       if (dribbleCooldown > 0) dribbleCooldown -= dt;
       
       const ballPos2D = new THREE.Vector2(ball.position.x, ball.position.z); const playerPos2D = new THREE.Vector2(player.position.x, player.position.z);
       const dist = ballPos2D.distanceTo(playerPos2D);
       
       const ballSpeed = ballPhysics.velocity.length();
-      // Bắt bóng
-      if (!ballPhysics.isControlled && dist < 1.5 && ball.position.y <= ballPhysics.radius + 0.1 && dribbleCooldown <= 0 && ballSpeed < 25) {
+      
+      // Bắt bóng (Chỉ bắt khi bóng ở dưới đất, không nhảy, không xe đạp)
+      if (!ballPhysics.isControlled && dist < 1.5 && ball.position.y <= ballPhysics.radius + 0.1 && dribbleCooldown <= 0 && ballSpeed < 25 && !playerState.isJumping && !playerState.isBicycleKick) {
         ballPhysics.isControlled = true; ballPhysics.velocity.set(0, 0, 0); ballPhysics.isCurving = false; ballPhysics.isKnuckle = false; ballPhysics.trailActive = false;
       }
 
@@ -345,17 +385,15 @@
         
         if (isSpinning) {
           spinTime += dt * 15;
-          leftLeg.rotation.x = Math.sin(spinTime) * 0.5;
-          rightLeg.rotation.x = -Math.sin(spinTime) * 0.5;
-          leftArm.rotation.x = Math.cos(spinTime) * 0.3;
-          rightArm.rotation.x = -Math.cos(spinTime) * 0.3;
+          leftLeg.rotation.x = Math.sin(spinTime) * 0.5; rightLeg.rotation.x = -Math.sin(spinTime) * 0.5;
+          leftArm.rotation.x = Math.cos(spinTime) * 0.3; rightArm.rotation.x = -Math.cos(spinTime) * 0.3;
           
           const ballOffset = new THREE.Vector3(Math.cos(spinTime * 0.8) * 0.6, ballPhysics.radius, Math.sin(spinTime * 0.8) * 0.6);
           const targetBallPos = player.position.clone().add(forwardDir.multiplyScalar(0.5)).add(ballOffset);
           ball.position.lerp(targetBallPos, 0.4);
           
         } else {
-          const targetBallPos = player.position.clone().add(forwardDir.multiplyScalar(0.9)); targetBallPos.y = ballPhysics.radius; 
+          const targetBallPos = player.position.clone().add(forwardDir.multiplyScalar(0.9)); targetBallPos.y = ballPhysics.radius + player.position.y; // Bóng bay lên theo người khi nhảy
           ball.position.lerp(targetBallPos, 0.3);
           
           if (isMoving) {
@@ -369,12 +407,11 @@
     }
 
     function updateBall(dt) {
-      // Vệt sáng (Trail)
       if (ballPhysics.trailActive && !ballPhysics.isControlled) {
         if (Math.random() > 0.4) {
           const trailGeo = new THREE.SphereGeometry(0.15, 8, 8);
           const trailMat = new THREE.MeshBasicMaterial({ 
-            color: ballPhysics.shotType === 'knuckle' ? 0xff3333 : (ballPhysics.shotType === 'curve' ? 0x00ffff : 0xffffff), 
+            color: ballPhysics.shotType === 'knuckle' ? 0xff3333 : (ballPhysics.shotType === 'bicycle' ? 0xffff00 : (ballPhysics.shotType === 'curve' ? 0x00ffff : 0xffffff)), 
             transparent: true, opacity: 0.7 
           });
           const trailMesh = new THREE.Mesh(trailGeo, trailMat);
@@ -385,14 +422,11 @@
       }
 
       if (!ballPhysics.isControlled) {
-        // 1. VẬT LÝ SÚT XOÁY (BEZIER CURVE)
         if (ballPhysics.isCurving) {
           ballPhysics.curveTime += dt;
           const t = Math.min(ballPhysics.curveTime / ballPhysics.curveDuration, 1);
-          
           const controlPoint = ballPhysics.startPos.clone().add(ballPhysics.targetPos).multiplyScalar(0.5);
-          controlPoint.y += 8; // Bay bổng lên
-          controlPoint.x += ballPhysics.curveAmount; // Bẻ cong sang ngang
+          controlPoint.y += 8; controlPoint.x += ballPhysics.curveAmount;
 
           const pos = new THREE.Vector3();
           pos.x = Math.pow(1-t, 2) * ballPhysics.startPos.x + 2*(1-t)*t*controlPoint.x + Math.pow(t, 2) * ballPhysics.targetPos.x;
@@ -400,32 +434,20 @@
           pos.z = Math.pow(1-t, 2) * ballPhysics.startPos.z + 2*(1-t)*t*controlPoint.z + Math.pow(t, 2) * ballPhysics.targetPos.z;
           
           ball.position.lerp(pos, 0.5);
-
           if (t >= 1) { ballPhysics.isCurving = false; ballPhysics.trailActive = false; }
         } 
-        // 2. VẬT LÝ SÚT SẤM SÉT (KNUCKLE - LẮC LƯ)
         else if (ballPhysics.isKnuckle) {
           ballPhysics.knuckleTime += dt;
           ballPhysics.velocity.y += ballPhysics.gravity * dt;
-          
-          // Tạo lực lắc lư ngẫu nhiên (Ziczac)
           ballPhysics.velocity.x += Math.sin(ballPhysics.knuckleTime * 40) * 20 * dt;
           ballPhysics.velocity.z += Math.cos(ballPhysics.knuckleTime * 35) * 20 * dt;
 
-          ball.position.x += ballPhysics.velocity.x * dt; 
-          ball.position.y += ballPhysics.velocity.y * dt; 
-          ball.position.z += ballPhysics.velocity.z * dt;
-
-          if (ball.position.y < ballPhysics.radius) {
-            ballPhysics.isKnuckle = false; ballPhysics.velocity.y = 0; ballPhysics.trailActive = false;
-          }
+          ball.position.x += ballPhysics.velocity.x * dt; ball.position.y += ballPhysics.velocity.y * dt; ball.position.z += ballPhysics.velocity.z * dt;
+          if (ball.position.y < ballPhysics.radius) { ballPhysics.isKnuckle = false; ballPhysics.velocity.y = 0; ballPhysics.trailActive = false; }
         }
-        // 3. VẬT LÝ TỰ DO (SÚT THƯỜNG, SÚT BỔNG)
         else {
           ballPhysics.velocity.y += ballPhysics.gravity * dt;
-          ball.position.x += ballPhysics.velocity.x * dt; 
-          ball.position.y += ballPhysics.velocity.y * dt; 
-          ball.position.z += ballPhysics.velocity.z * dt;
+          ball.position.x += ballPhysics.velocity.x * dt; ball.position.y += ballPhysics.velocity.y * dt; ball.position.z += ballPhysics.velocity.z * dt;
           
           if (ball.position.y < ballPhysics.radius) {
             ball.position.y = ballPhysics.radius;
@@ -448,8 +470,12 @@
     }
 
     function updateCamera(dt) {
-      const targetPos = new THREE.Vector3(player.position.x + cameraOffset.x, player.position.y + cameraOffset.y, player.position.z + cameraOffset.z);
-      camera.position.lerp(targetPos, 0.1); cameraTarget.set(player.position.x, player.position.y + 1, player.position.z); camera.lookAt(cameraTarget);
+      // Camera nhích lên một chút khi cầu thủ nhảy
+      const targetY = 8 + (player.position.y * 0.5);
+      const targetPos = new THREE.Vector3(player.position.x + cameraOffset.x, targetY, player.position.z + cameraOffset.z);
+      camera.position.lerp(targetPos, 0.1); 
+      cameraTarget.set(player.position.x, player.position.y + 1, player.position.z); 
+      camera.lookAt(cameraTarget);
     }
     function updateTimer(dt) {
       timeLeft -= dt / 6; if (timeLeft < 0) timeLeft = 0;
@@ -465,7 +491,8 @@
       ball.position.set(0, ballPhysics.radius, 0); ballPhysics.velocity.set(0, 0, 0); 
       ballPhysics.isControlled = false; ballPhysics.isCurving = false; ballPhysics.isKnuckle = false; ballPhysics.trailActive = false;
       kickTimer = 0; dribbleCooldown = 0;
-      player.position.set(0, 0, 20); player.rotation.y = 0; 
+      player.position.set(0, 0, 20); player.rotation.y = 0; player.rotation.x = 0; 
+      playerState.isJumping = false; playerState.isBicycleKick = false; playerState.velocityY = 0;
     }
     function updateScoreUI() { document.getElementById('score').textContent = `🔵 ${score.blue} - ${score.red} 🔴`; }
     function flashScreen(color) {
