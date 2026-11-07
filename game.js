@@ -198,15 +198,25 @@ const ballPhysics = {
   friction: 0.985,
   bounce: 0.6,
   gravity: -20,
-  isControlled: false // Trạng thái bóng đang dính chân
+  isControlled: false
 };
 
 // ===== ĐIỀU KHIỂN =====
 const keys = {};
 document.addEventListener('keydown', e => {
-  // Ngăn trình duyệt cuộn trang khi bấm Space
+  // Chặn trình duyệt cuộn trang với Space
   if (e.code === 'Space') e.preventDefault(); 
   keys[e.code] = true;
+  
+  // NÚT SÚT MỚI: Phím J
+  if (e.code === 'KeyJ' && ballPhysics.isControlled && kickTimer <= 0) {
+    const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
+    ballPhysics.velocity.x = kickDir.x * 35;
+    ballPhysics.velocity.z = kickDir.z * 35;
+    ballPhysics.velocity.y = 6;
+    ballPhysics.isControlled = false; // Thả bóng
+    kickTimer = 0.3; // Kích hoạt animation đá
+  }
 });
 document.addEventListener('keyup', e => keys[e.code] = false);
 
@@ -277,21 +287,11 @@ function updatePlayer(dt) {
   player.position.x = THREE.MathUtils.clamp(player.position.x, -limitX, limitX);
   player.position.z = THREE.MathUtils.clamp(player.position.z, -limitZ, limitZ);
   
-  // ===== XỬ LÝ SÚT BÓNG =====
+  // Animation khi sút
   if (kickTimer > 0) {
     kickTimer -= dt;
     rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, -1.5, 0.5);
     rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 1.5, 0.5);
-  } else if (keys['Space'] && ballPhysics.isControlled) {
-    // Đang giữ bóng + bấm Space -> SÚT (cho phép sút cả khi đang chạy)
-    const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
-    ballPhysics.velocity.x = kickDir.x * 35; // Tăng lực sút lên một chút
-    ballPhysics.velocity.z = kickDir.z * 35;
-    ballPhysics.velocity.y = 6;
-    
-    ballPhysics.isControlled = false; // Thả bóng
-    kickTimer = 0.3; // Kích hoạt animation đá
-    keys['Space'] = false; // Reset phím để tránh sút liên tục
   }
   
   // ===== XỬ LÝ DÍNH BÓNG (DRIBBLE) =====
@@ -299,8 +299,8 @@ function updatePlayer(dt) {
   const playerPos2D = new THREE.Vector2(player.position.x, player.position.z);
   const dist = ballPos2D.distanceTo(playerPos2D);
 
-  // Nếu bóng chưa dính và người chơi lại gần
-  if (!ballPhysics.isControlled && dist < 1.5) {
+  // Nếu bóng chưa dính, khoảng cách < 1.5 và bóng đang ở dưới đất -> Bắt bóng
+  if (!ballPhysics.isControlled && dist < 1.5 && ball.position.y <= ballPhysics.radius + 0.1) {
     ballPhysics.isControlled = true; 
     ballPhysics.velocity.set(0, 0, 0); 
   }
@@ -311,6 +311,7 @@ function updatePlayer(dt) {
     const targetBallPos = player.position.clone().add(forwardDir.multiplyScalar(0.8));
     targetBallPos.y = ballPhysics.radius; 
     
+    // Cập nhật vị trí bóng mượt mà
     ball.position.lerp(targetBallPos, 0.5);
 
     // Xoay bóng lăn
@@ -322,7 +323,6 @@ function updatePlayer(dt) {
 }
 
 function updateBall(dt) {
-  // Vật lý chỉ hoạt động khi bóng KHÔNG dính chân
   if (!ballPhysics.isControlled) {
     ballPhysics.velocity.y += ballPhysics.gravity * dt;
     ball.position.x += ballPhysics.velocity.x * dt;
@@ -348,7 +348,6 @@ function updateBall(dt) {
       ballPhysics.velocity.z *= -0.7;
     }
     
-    // Xoay bóng khi bay/lăn tự do
     const speed = ballPhysics.velocity.length();
     if (speed > 0.1) {
       const axis = new THREE.Vector3(ballPhysics.velocity.z, 0, -ballPhysics.velocity.x).normalize();
