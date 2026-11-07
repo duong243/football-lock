@@ -14,7 +14,6 @@
     #hint { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(200,0,0,0.8); padding: 10px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; z-index: 10; border: 2px solid white; text-align: center; line-height: 1.5; }
     #status { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); color: #ffeb3b; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 2px black; z-index: 10; }
     
-    /* Thanh lực sút */
     #powerBarContainer {
       position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
       width: 300px; height: 25px; background: rgba(0,0,0,0.5);
@@ -39,13 +38,12 @@
   
   <div id="status">Trạng thái: Chưa giữ bóng</div>
   
-  <!-- Thanh lực và chỉ báo độ xoáy -->
   <div id="curveIndicator">Đang xoáy: TRÁI</div>
   <div id="powerBarContainer"><div id="powerBar"></div></div>
 
   <div id="hint">
     WASD để di chuyển • SHIFT chạy nhanh<br>
-    <b>Giữ J</b> để tích lực, <b>giữ thêm A/D</b> để tạo độ cong (Curve), nhả J để sút<br>
+    <b>Giữ J</b> để tích lực, <b>giữ thêm A/D</b> để tạo độ cong, nhả J để sút<br>
     <b>Giữ K</b> (khi đứng im) để đảo chân giữ bóng • <b>Bấm K</b> (khi đang chạy) để đẩy bóng dài
   </div>
   
@@ -70,7 +68,6 @@
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
 
-    // Ánh sáng
     scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const sun = new THREE.DirectionalLight(0xffffff, 1.2);
     sun.position.set(30, 50, 30); sun.castShadow = true;
@@ -78,7 +75,6 @@
     sun.shadow.camera.left = -60; sun.shadow.camera.right = 60; sun.shadow.camera.top = 60; sun.shadow.camera.bottom = -60;
     scene.add(sun);
 
-    // Sân bóng
     const FIELD_W = 60; const FIELD_L = 100;
     const grass = new THREE.Mesh(new THREE.PlaneGeometry(FIELD_W, FIELD_L), new THREE.MeshStandardMaterial({ color: 0x2d8a2d }));
     grass.rotation.x = -Math.PI / 2; grass.receiveShadow = true; scene.add(grass);
@@ -92,7 +88,6 @@
     circle.rotation.x = -Math.PI / 2; circle.position.y = 0.02; scene.add(circle);
     addLine(-FIELD_W/2, 0, 0.3, FIELD_L); addLine(FIELD_W/2, 0, 0.3, FIELD_L); addLine(0, -FIELD_L/2, FIELD_W, 0.3); addLine(0, FIELD_L/2, FIELD_W, 0.3);
 
-    // Khung thành
     function createGoal(zPos) {
       const group = new THREE.Group();
       const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
@@ -106,7 +101,6 @@
     }
     scene.add(createGoal(-FIELD_L/2)); scene.add(createGoal(FIELD_L/2));
 
-    // Cầu thủ
     let leftLeg, rightLeg, leftArm, rightArm;
     function createPlayer(color) {
       const p = new THREE.Group();
@@ -131,7 +125,6 @@
     }
     const player = createPlayer(0x0066ff); player.position.set(0, 0, 20); scene.add(player);
 
-    // Bóng
     const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
     const ball = new THREE.Mesh(new THREE.SphereGeometry(0.4, 24, 24), ballMat);
     ball.castShadow = true; ball.position.set(0, 0.4, 0); scene.add(ball);
@@ -140,18 +133,23 @@
     for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(Math.random()*256, Math.random()*256, 20, 0, Math.PI*2); ctx.fill(); }
     ballMat.map = new THREE.CanvasTexture(ballCanvas);
 
-    // Vật lý (Thêm curveForce)
+    // Vật lý
     const ballPhysics = { 
       velocity: new THREE.Vector3(0, 0, 0), 
-      curveForce: 0, // Lực xoáy (trục X)
       radius: 0.4, 
       friction: 0.985, 
       bounce: 0.6, 
       gravity: -20, 
-      isControlled: false 
+      isControlled: false,
+      // Cơ chế bay cong
+      isCurving: false,
+      curveTime: 0,
+      curveDuration: 1.2,
+      curveAmount: 0,
+      startPos: new THREE.Vector3(),
+      targetPos: new THREE.Vector3()
     };
 
-    // Biến điều khiển
     const keys = {};
     let kickTimer = 0; 
     let dribbleCooldown = 0;
@@ -182,25 +180,42 @@
     document.addEventListener('keyup', e => {
       keys[e.code] = false;
       
-      // NHẢ J -> SÚT (Áp dụng cong)
       if (e.code === 'KeyJ' && isCharging) {
         isCharging = false;
         powerBarContainer.style.display = 'none';
         curveIndicator.style.display = 'none';
         
-        const finalPower = 15 + (chargePower * 30); // Giảm nhẹ tốc độ tối đa
+        const finalPower = 15 + (chargePower * 25); 
         const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
         
-        ballPhysics.velocity.x = kickDir.x * finalPower;
-        ballPhysics.velocity.z = kickDir.z * finalPower;
-        ballPhysics.velocity.y = 4 + (chargePower * 4);
-        
-        // Thiết lập lực xoáy
-        ballPhysics.curveForce = 0;
-        if (keys['KeyA']) ballPhysics.curveForce = -25 * chargePower; // Xoáy trái
-        if (keys['KeyD']) ballPhysics.curveForce = 25 * chargePower;  // Xoáy phải
+        // Tính toán độ xoáy
+        let curveDir = 0;
+        if (keys['KeyA']) curveDir = -1;
+        if (keys['KeyD']) curveDir = 1;
 
         ballPhysics.isControlled = false; 
+        
+        if (curveDir !== 0 && chargePower > 0.1) {
+          // KÍCH HOẠT CHẾ ĐỘ BAY CONG BẰNG TOÁN HỌC
+          ballPhysics.isCurving = true;
+          ballPhysics.curveTime = 0;
+          ballPhysics.curveAmount = curveDir * 12; // Độ cong
+          ballPhysics.startPos.copy(ball.position);
+          
+          // Tính điểm đích đến (dựa trên hướng mặt và lực sút)
+          const targetDist = finalPower * 1.5;
+          ballPhysics.targetPos.copy(ball.position).add(kickDir.clone().multiplyScalar(targetDist));
+          
+          // Gán vận tốc ban đầu (sẽ bị ghi đè khi đang cong)
+          ballPhysics.velocity.set(kickDir.x * finalPower, 5 + chargePower * 3, kickDir.z * finalPower);
+        } else {
+          // SÚT THẲNG BÌNH THƯỜNG
+          ballPhysics.isCurving = false;
+          ballPhysics.velocity.x = kickDir.x * finalPower;
+          ballPhysics.velocity.z = kickDir.z * finalPower;
+          ballPhysics.velocity.y = 4 + (chargePower * 3);
+        }
+
         kickTimer = 0.4; 
         dribbleCooldown = 0.6; 
         chargePower = 0;
@@ -226,11 +241,9 @@
       if (keys['KeyW']) dir.z -= 1; if (keys['KeyS']) dir.z += 1; if (keys['KeyA']) dir.x -= 1; if (keys['KeyD']) dir.x += 1;
       const isMoving = dir.length() > 0; let moveDistance = 0;
 
-      // Tích lực & Hiển thị độ xoáy
       if (isCharging) {
         chargePower = Math.min(1, chargePower + dt * 1.5);
         powerBar.style.width = (chargePower * 100) + '%';
-        
         if (keys['KeyA']) { curveIndicator.textContent = "Đang xoáy: TRÁI"; curveIndicator.style.display = 'block'; }
         else if (keys['KeyD']) { curveIndicator.textContent = "Đang xoáy: PHẢI"; curveIndicator.style.display = 'block'; }
         else { curveIndicator.style.display = 'none'; }
@@ -260,8 +273,9 @@
       const ballPos2D = new THREE.Vector2(ball.position.x, ball.position.z); const playerPos2D = new THREE.Vector2(player.position.x, player.position.z);
       const dist = ballPos2D.distanceTo(playerPos2D);
       
+      // Nếu đang bay cong thì không bắt bóng
       if (!ballPhysics.isControlled && dist < 1.5 && ball.position.y <= ballPhysics.radius + 0.1 && dribbleCooldown <= 0) {
-        ballPhysics.isControlled = true; ballPhysics.velocity.set(0, 0, 0); ballPhysics.curveForce = 0;
+        ballPhysics.isControlled = true; ballPhysics.velocity.set(0, 0, 0); ballPhysics.isCurving = false;
       }
 
       if (ballPhysics.isControlled) {
@@ -297,24 +311,37 @@
 
     function updateBall(dt) {
       if (!ballPhysics.isControlled) {
-        // Áp dụng trọng lực
-        ballPhysics.velocity.y += ballPhysics.gravity * dt;
-        
-        // Áp dụng lực xoáy (Curve) - Chỉ tác dụng khi bóng đang bay trên không
-        if (ball.position.y > ballPhysics.radius + 0.1) {
-          ballPhysics.velocity.x += ballPhysics.curveForce * dt;
-        } else {
-          ballPhysics.curveForce = 0; // Mất xoáy khi chạm đất
-        }
+        if (ballPhysics.isCurving) {
+          // TOÁN HỌC UỐN CONG BÓNG (Đường cong Bezier)
+          ballPhysics.curveTime += dt;
+          const t = Math.min(ballPhysics.curveTime / ballPhysics.curveDuration, 1);
+          
+          // Tạo điểm điều khiển (Control Point) để bẻ cong quỹ đạo
+          const controlPoint = ballPhysics.startPos.clone().add(ballPhysics.targetPos).multiplyScalar(0.5);
+          controlPoint.y += 5; // Bóng bay bổng lên
+          controlPoint.x += ballPhysics.curveAmount; // Bẻ cong sang ngang
 
-        ball.position.x += ballPhysics.velocity.x * dt; 
-        ball.position.y += ballPhysics.velocity.y * dt; 
-        ball.position.z += ballPhysics.velocity.z * dt;
-        
-        if (ball.position.y < ballPhysics.radius) {
-          ball.position.y = ballPhysics.radius;
-          if (Math.abs(ballPhysics.velocity.y) > 1) ballPhysics.velocity.y = -ballPhysics.velocity.y * ballPhysics.bounce; else ballPhysics.velocity.y = 0;
-          ballPhysics.velocity.x *= ballPhysics.friction; ballPhysics.velocity.z *= ballPhysics.friction;
+          // Công thức Bezier bậc 2
+          const pos = new THREE.Vector3();
+          pos.x = Math.pow(1-t, 2) * ballPhysics.startPos.x + 2*(1-t)*t*controlPoint.x + Math.pow(t, 2) * ballPhysics.targetPos.x;
+          pos.y = Math.pow(1-t, 2) * ballPhysics.startPos.y + 2*(1-t)*t*controlPoint.y + Math.pow(t, 2) * ballPhysics.targetPos.y;
+          pos.z = Math.pow(1-t, 2) * ballPhysics.startPos.z + 2*(1-t)*t*controlPoint.z + Math.pow(t, 2) * ballPhysics.targetPos.z;
+          
+          ball.position.lerp(pos, 0.5); // Bay mượt theo đường cong
+
+          if (t >= 1) {
+            ballPhysics.isCurving = false; // Hết cong, trả về vật lý thường
+          }
+        } else {
+          // Vật lý thông thường
+          ballPhysics.velocity.y += ballPhysics.gravity * dt;
+          ball.position.x += ballPhysics.velocity.x * dt; ball.position.y += ballPhysics.velocity.y * dt; ball.position.z += ballPhysics.velocity.z * dt;
+          
+          if (ball.position.y < ballPhysics.radius) {
+            ball.position.y = ballPhysics.radius;
+            if (Math.abs(ballPhysics.velocity.y) > 1) ballPhysics.velocity.y = -ballPhysics.velocity.y * ballPhysics.bounce; else ballPhysics.velocity.y = 0;
+            ballPhysics.velocity.x *= ballPhysics.friction; ballPhysics.velocity.z *= ballPhysics.friction;
+          }
         }
         
         const limitX = FIELD_W / 2 - ballPhysics.radius; const limitZ = FIELD_L / 2 - ballPhysics.radius;
@@ -345,7 +372,7 @@
     }
     function resetBall() { 
       ball.position.set(0, ballPhysics.radius, 0); ballPhysics.velocity.set(0, 0, 0); 
-      ballPhysics.isControlled = false; ballPhysics.curveForce = 0; kickTimer = 0; dribbleCooldown = 0;
+      ballPhysics.isControlled = false; ballPhysics.isCurving = false; kickTimer = 0; dribbleCooldown = 0;
       player.position.set(0, 0, 20); player.rotation.y = 0; 
     }
     function updateScoreUI() { document.getElementById('score').textContent = `🔵 ${score.blue} - ${score.red} 🔴`; }
