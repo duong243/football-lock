@@ -3,50 +3,240 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Blue Lock Web - 3D Soccer</title>
+  <title>Blue Lock Ultimate - Web 3D</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { overflow: hidden; font-family: 'Arial', sans-serif; background: #000; }
-    #ui { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 30px; z-index: 10; color: white; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
-    #score { background: rgba(0,0,0,0.6); padding: 10px 30px; border-radius: 10px; border: 2px solid #00aaff; }
-    #timer { background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 10px; border: 2px solid #ffaa00; }
+    /* CSS TOÀN BỘ GIAO DIỆN */
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+    body { background: #111; color: white; overflow: hidden; width: 100vw; height: 100vh; }
     
-    #hint { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(200,0,0,0.8); padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: bold; z-index: 10; border: 2px solid white; text-align: center; line-height: 1.5; width: 90%; max-width: 1000px;}
-    #status { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); color: #ffeb3b; font-size: 20px; font-weight: bold; text-shadow: 1px 1px 2px black; z-index: 10; }
+    /* Game 3D */
+    #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
     
-    #powerBarContainer {
-      position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
-      width: 300px; height: 25px; background: rgba(0,0,0,0.5);
-      border: 2px solid white; border-radius: 10px; display: none; z-index: 10;
-    }
-    #powerBar {
-      width: 0%; height: 100%; background: linear-gradient(90deg, #00ff00, #ffff00, #ff0000);
-      border-radius: 8px; transition: width 0.05s;
-    }
-    #shotTypeIndicator {
-      position: fixed; bottom: 135px; left: 50%; transform: translateX(-50%);
-      color: #00ffff; font-size: 20px; font-weight: bold; display: none; z-index: 10;
-      text-shadow: 2px 2px 2px black;
-    }
+    /* LOGIN */
+    #login-screen { position: absolute; inset: 0; background: #000; z-index: 100; display: flex; justify-content: center; align-items: center; }
+    .login-box { background: #222; padding: 40px; border-radius: 15px; border: 2px solid #00aaff; width: 400px; text-align: center; }
+    .login-box input { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: none; }
+    .login-box button { width: 100%; padding: 10px; background: #00aaff; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+    
+    /* LOBBY */
+    #lobby-screen { position: absolute; inset: 0; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); z-index: 10; display: none; flex-direction: column; padding: 20px; }
+    .header { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); padding: 15px 30px; border-radius: 15px; border: 2px solid #00aaff; }
+    .player-info { display: flex; gap: 20px; align-items: center; font-size: 18px; font-weight: bold; }
+    .currency { display: flex; gap: 15px; }
+    .currency span { background: rgba(255,255,255,0.1); padding: 5px 15px; border-radius: 20px; border: 1px solid #ffd700; color: #ffd700; }
+    
+    .main-menu { display: flex; gap: 20px; margin-top: 30px; height: 100%; }
+    .menu-sidebar { width: 250px; display: flex; flex-direction: column; gap: 10px; }
+    .menu-btn { background: rgba(0, 170, 255, 0.2); border: 2px solid #00aaff; color: white; padding: 15px; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: bold; text-align: left; transition: 0.2s; }
+    .menu-btn:hover { background: rgba(0, 170, 255, 0.5); transform: translateX(5px); }
+    
+    .content-area { flex: 1; background: rgba(0,0,0,0.4); border-radius: 15px; padding: 20px; border: 1px solid rgba(255,255,255,0.1); overflow-y: auto; display: none; }
+    .content-area.active { display: block; }
+    
+    /* BUTTONS & CARDS */
+    .btn-play { background: linear-gradient(90deg, #ff416c, #ff4b2b); color: white; font-size: 24px; padding: 20px; border: none; border-radius: 15px; cursor: pointer; font-weight: bold; box-shadow: 0 0 20px rgba(255,65,108,0.6); margin-bottom: 20px; width: 100%; }
+    .mode-selection { display: none; gap: 20px; width: 100%; }
+    .mode-card { flex: 1; background: #222; border: 2px solid #555; padding: 20px; border-radius: 10px; cursor: pointer; text-align: center; transition: 0.2s; }
+    .mode-card:hover { border-color: #00aaff; background: #2a2a2a; transform: scale(1.05); }
+    
+    .grid-3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
+    .item-card { background: #222; border: 2px solid #444; border-radius: 10px; padding: 15px; text-align: center; }
+    .item-card h4 { color: #00ffff; margin-bottom: 10px; }
+    .item-card p { font-size: 12px; color: #aaa; margin-bottom: 10px; }
+    .btn-buy { background: #00aaff; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.2s; }
+    .btn-buy:hover { background: #0088cc; }
+    .btn-buy:disabled { background: #555; cursor: not-allowed; }
+
+    /* CHAT */
+    #chat-box { position: absolute; bottom: 20px; left: 20px; width: 300px; height: 200px; background: rgba(0,0,0,0.7); border: 1px solid #555; border-radius: 10px; display: flex; flex-direction: column; z-index: 20; }
+    #chat-messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 13px; }
+    #chat-input-area { display: flex; border-top: 1px solid #555; }
+    #chat-input { flex: 1; background: transparent; border: none; color: white; padding: 10px; outline: none; }
+    #chat-send { background: #00aaff; color: white; border: none; padding: 0 15px; cursor: pointer; }
+
+    /* HUD GAME */
+    #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; display: none; }
+    .hud-top { display: flex; justify-content: center; align-items: flex-start; padding-top: 20px; gap: 20px; }
+    .scoreboard { background: rgba(0,0,0,0.8); padding: 10px 30px; border-radius: 10px; font-size: 28px; font-weight: bold; color: white; border: 2px solid #ffaa00; }
+    .player-stats { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 10px; border: 1px solid #00ff00; width: 200px; }
+    .bar-container { background: #333; height: 15px; border-radius: 5px; margin-bottom: 10px; overflow: hidden; }
+    .hp-bar { height: 100%; background: #ff3333; width: 100%; transition: width 0.2s; }
+    .mana-bar { height: 100%; background: #00aaff; width: 100%; transition: width 0.2s; }
+
+    /* ADMIN MENU MỚI */
+    #admin-menu-panel { position: absolute; top: 100px; right: 20px; background: linear-gradient(180deg, #330000, #110000); border: 2px solid #ff0000; padding: 20px; border-radius: 15px; z-index: 50; display: none; width: 320px; box-shadow: 0 0 20px rgba(255,0,0,0.5); }
+    #admin-menu-panel h2 { color: #ff5555; text-align: center; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid #ff0000; padding-bottom: 10px; }
+    .admin-section { margin-bottom: 15px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; border: 1px solid #550000; }
+    .admin-section h3 { color: #ffaa00; font-size: 14px; margin-bottom: 8px; text-transform: uppercase; }
+    .admin-btn { display: block; width: 100%; margin-bottom: 5px; background: #ff0000; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; }
+    .admin-btn:hover { background: #cc0000; transform: scale(1.02); }
+    .admin-btn.gold { background: #ffd700; color: #000; }
+    .admin-btn.gem { background: #00ffff; color: #000; }
+    .admin-btn.evo { background: #9400d3; color: #fff; }
+    .admin-btn.shop { background: #00ff00; color: #000; }
+    .admin-btn.max { background: #ff00ff; color: #fff; }
+    .admin-btn.ban { background: #000; color: #ff0000; border: 1px solid #ff0000; }
+
+    /* MODAL */
+    .modal { position: absolute; inset: 0; background: rgba(0,0,0,0.8); z-index: 80; display: none; justify-content: center; align-items: center; }
+    .modal-content { background: #222; padding: 30px; border-radius: 15px; border: 2px solid #ffd700; text-align: center; max-width: 500px; width: 90%; }
+    .modal-content button { margin: 10px; padding: 10px 20px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold; }
   </style>
 </head>
 <body>
-  <div id="ui">
-    <div id="score">🔵 0 - 0 🔴</div>
-    <div id="timer">90:00</div>
-  </div>
-  
-  <div id="status">Trạng thái: Chưa giữ bóng</div>
-  
-  <div id="shotTypeIndicator">Chọn kiểu sút...</div>
-  <div id="powerBarContainer"><div id="powerBar"></div></div>
 
-  <div id="hint">
-    WASD di chuyển • SHIFT chạy nhanh • K rê bóng • <b>SPACE để nhảy</b><br>
-    <b>L để tâng bóng lên cao.</b> Khi bóng đang ở trên không, <b>giữ J + W</b> để XE ĐẠP CHỔNG NGƯỢC!<br>
-    <b>Sút trên mặt đất (Giữ J):</b> Thường • A/D (Xoáy) • S (Sấm sét) • W (Bổng)
+  <!-- LOGIN -->
+  <div id="login-screen">
+    <div class="login-box">
+      <h2>ĐĂNG NHẬP BLUE LOCK</h2>
+      <input type="text" id="login-user" placeholder="Tên đăng nhập (admin để test)">
+      <input type="password" id="login-pass" placeholder="Mật khẩu (adminfb)">
+      <button onclick="login()">VÀO GAME</button>
+    </div>
   </div>
-  
+
+  <!-- LOBBY -->
+  <div id="lobby-screen">
+    <div class="header">
+      <div class="player-info">
+        <span id="lobby-name">Tên</span> | 
+        <span id="lobby-rank">Rank: Đồng 1</span> | 
+        <span id="lobby-lv">Lv: 1</span>
+      </div>
+      <div class="currency">
+        <span id="lobby-gold">🪙 0</span>
+        <span id="lobby-gem">💎 0</span>
+        <span id="lobby-evo">🌑 0</span>
+      </div>
+    </div>
+    
+    <div class="main-menu">
+      <div class="menu-sidebar">
+        <button class="menu-btn" onclick="showTab('home')">🏠 TRANG CHỦ</button>
+        <button class="menu-btn" onclick="showTab('shop')">🛒 CỬA HÀNG</button>
+        <button class="menu-btn" onclick="showTab('gacha')">🎰 VÒNG QUAY</button>
+        <button class="menu-btn" onclick="showTab('skills')">⚡ KỸ NĂNG</button>
+        <button class="menu-btn" onclick="showTab('mission')">📜 NHIỆM VỤ</button>
+      </div>
+      
+      <div class="content-area active" id="tab-home" style="display:flex; flex-direction:column; justify-content:center; align-items:center;">
+        <button class="btn-play" onclick="toggleModes()">VÀO TRẬN ⚽</button>
+        <div class="mode-selection" id="mode-selection">
+          <div class="mode-card" onclick="startGame('training')"><h3>TẬP LUYỆN VS AI</h3><p>Rèn luyện kỹ năng</p></div>
+          <div class="mode-card" onclick="startGame('custom')"><h3>ĐÁ RIÊNG (2v2)</h3><p>Đấu với bạn bè</p></div>
+          <div class="mode-card" onclick="startGame('rank')"><h3>ĐÁ TRẬN (5v5)</h3><p>Leo rank (1 vàng/bàn)</p></div>
+        </div>
+      </div>
+
+      <div class="content-area" id="tab-shop">
+        <h2>CỬA HÀNG</h2>
+        <div class="grid-3">
+          <div class="item-card"><h4>Skin Siêu Sao</h4><p>Tỏa sáng rực rỡ</p><button class="btn-buy" onclick="buyItem('skin', 50)">💎 50</button></div>
+          <div class="item-card"><h4>+1 Lực Sút</h4><p>Tăng sức mạnh dứt điểm</p><button class="btn-buy" onclick="buyItem('shoot', 5)">💎 5</button></div>
+          <div class="item-card"><h4>+1 Tốc Độ</h4><p>Chạy nhanh như gió</p><button class="btn-buy" onclick="buyItem('speed', 5)">💎 5</button></div>
+        </div>
+      </div>
+
+      <div class="content-area" id="tab-gacha">
+        <h2>VÒNG QUAY MAY MẮN</h2>
+        <div style="display:flex; gap:20px; margin-top:20px;">
+          <div class="item-card" style="flex:1;">
+            <h3>Vòng Quay Thường</h3>
+            <p>Dùng Vàng</p>
+            <button class="btn-buy" style="background:#ffaa00; color:#000;" onclick="rollGacha('normal')">Quay (1000 Vàng)</button>
+          </div>
+          <div class="item-card" style="flex:1;">
+            <h3>Vòng Quay Pro</h3>
+            <p>Dùng Kim Cương</p>
+            <button class="btn-buy" onclick="rollGacha('pro')">Quay (50 Kim Cương)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="content-area" id="tab-skills">
+        <h2>KỸ NĂNG THỨC TỈNH</h2>
+        <div class="grid-3">
+          <div class="item-card"><h4>Xe Đạp Chổng Ngược</h4><p>Đã mở khóa</p><button class="btn-buy" disabled>Đã có</button></div>
+          <div class="item-card"><h4>Knuckleball Pro</h4><p>Lắc lư khó đoán hơn</p><button class="btn-buy" onclick="buyItem('knuckle', 20)">🌑 20</button></div>
+        </div>
+      </div>
+
+      <div class="content-area" id="tab-mission">
+        <h2>NHIỆM VỤ TUẦN</h2>
+        <div class="grid-3">
+          <div class="item-card"><h4>Ghi 10 Bàn</h4><p>Thưởng: 50 Kim Cương</p><button class="btn-buy" style="background:#666;">0/10</button></div>
+          <div class="item-card"><h4>Ghi 20 Bàn</h4><p>Thưởng: 100 Kim Cương</p><button class="btn-buy" style="background:#666;">0/20</button></div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="chat-box">
+      <div id="chat-messages"><div style="color:#aaa;">[Hệ thống]: Chào mừng đến với Blue Lock!</div></div>
+      <div id="chat-input-area">
+        <input type="text" id="chat-input" placeholder="Nhập tin nhắn...">
+        <button id="chat-send" onclick="sendChat()">Gửi</button>
+      </div>
+    </div>
+
+    <!-- MENU ADMIN GỐC MỚI -->
+    <div id="admin-menu-panel">
+      <h2>Admin Control</h2>
+      
+      <div class="admin-section">
+        <h3>Tài Nguyên</h3>
+        <button class="admin-btn gold" onclick="adminAction('gold')">+100,000 Vàng</button>
+        <button class="admin-btn gem" onclick="adminAction('gem')">+10,000 Kim Cương</button>
+        <button class="admin-btn evo" onclick="adminAction('evo')">+1,000 Đá Thức Tỉnh</button>
+      </div>
+
+      <div class="admin-section">
+        <h3>Mở Khóa</h3>
+        <button class="admin-btn shop" onclick="adminAction('full_skin')">Mua Full Skin</button>
+        <button class="admin-btn shop" onclick="adminAction('full_skill')">Mua Full Kỹ Năng</button>
+      </div>
+
+      <div class="admin-section">
+        <h3>Nâng Cấp</h3>
+        <button class="admin-btn max" onclick="adminAction('full_stats')">Max Tốc Độ & Lực Sút</button>
+        <button class="admin-btn max" onclick="adminAction('max_all')">Max Level & Rank</button>
+      </div>
+
+      <div class="admin-section" id="admin-ban-section" style="display:none;">
+        <h3>Quản Trị</h3>
+        <button class="admin-btn ban" onclick="adminAction('ban')">BAN NGƯỜI CHƠI</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HUD GAME -->
+  <div id="game-container"></div>
+  <div id="hud">
+    <div class="hud-top">
+      <div class="scoreboard"><span id="hud-score">🔵 0 - 0 🔴</span></div>
+    </div>
+    <div class="player-stats">
+      <div style="font-weight:bold; margin-bottom:5px;" id="hud-player-name">PlayerName</div>
+      <div style="font-size:12px; margin-bottom:2px;">HP (100)</div>
+      <div class="bar-container"><div class="hp-bar" id="hud-hp"></div></div>
+      <div style="font-size:12px; margin-bottom:2px;">Mana (100)</div>
+      <div class="bar-container"><div class="mana-bar" id="hud-mana"></div></div>
+    </div>
+    <div style="position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px black; display: flex; gap: 20px;">
+      <div id="powerBarContainer" style="width: 300px; height: 20px; background: rgba(0,0,0,0.5); border: 2px solid white; border-radius: 10px; display: none;">
+        <div id="powerBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #00ff00, #ffff00, #ff0000); border-radius: 8px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL THÔNG BÁO -->
+  <div class="modal" id="modal-notify">
+    <div class="modal-content">
+      <h2 id="modal-title">Thông báo</h2>
+      <p id="modal-desc" style="margin:20px 0;">Nội dung</p>
+      <button onclick="document.getElementById('modal-notify').style.display='none'" style="background:#00aaff; color:white;">OK</button>
+    </div>
+  </div>
+
   <script type="importmap">
   {
     "imports": {
@@ -54,456 +244,371 @@
     }
   }
   </script>
+  
   <script type="module">
     import * as THREE from 'three';
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb);
-    scene.fog = new THREE.Fog(0x87ceeb, 50, 150);
+    // ==========================================
+    // 1. PLAYER DATA & LOGIC
+    // ==========================================
+    let playerData = {
+      username: "", isAdmin: false, isRootAdmin: false,
+      gold: 0, gem: 0, evoStone: 0, level: 1, rank: "Đồng 1",
+      shootPowerLv: 0, speedLv: 0,
+      ownedSkins: 0, ownedSkills: 0 // Đếm số lượng đã mua
+    };
 
-    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 500);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(renderer.domElement);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-    sun.position.set(30, 50, 30); sun.castShadow = true;
-    sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
-    sun.shadow.camera.left = -60; sun.shadow.camera.right = 60; sun.shadow.camera.top = 60; sun.shadow.camera.bottom = -60;
-    scene.add(sun);
-
-    const FIELD_W = 60; const FIELD_L = 100;
-    const grass = new THREE.Mesh(new THREE.PlaneGeometry(FIELD_W, FIELD_L), new THREE.MeshStandardMaterial({ color: 0x2d8a2d }));
-    grass.rotation.x = -Math.PI / 2; grass.receiveShadow = true; scene.add(grass);
-
-    function addLine(x, z, w, l) {
-      const line = new THREE.Mesh(new THREE.PlaneGeometry(w, l), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-      line.rotation.x = -Math.PI / 2; line.position.set(x, 0.01, z); scene.add(line);
+    function loadData() {
+      const saved = localStorage.getItem('bluelock_data');
+      if (saved) playerData = JSON.parse(saved);
+      updateLobbyUI();
     }
-    addLine(0, 0, FIELD_W, 0.3);
-    const circle = new THREE.Mesh(new THREE.RingGeometry(9, 9.3, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
-    circle.rotation.x = -Math.PI / 2; circle.position.y = 0.02; scene.add(circle);
-    addLine(-FIELD_W/2, 0, 0.3, FIELD_L); addLine(FIELD_W/2, 0, 0.3, FIELD_L); addLine(0, -FIELD_L/2, FIELD_W, 0.3); addLine(0, FIELD_L/2, FIELD_W, 0.3);
 
-    function createGoal(zPos) {
-      const group = new THREE.Group();
-      const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-      const GOAL_W = 14; const GOAL_H = 5; const postR = 0.15;
-      const postGeo = new THREE.CylinderGeometry(postR, postR, GOAL_H, 12);
-      const leftPost = new THREE.Mesh(postGeo, postMat); leftPost.position.set(-GOAL_W/2, GOAL_H/2, 0); leftPost.castShadow = true; group.add(leftPost);
-      const rightPost = new THREE.Mesh(postGeo, postMat); rightPost.position.set(GOAL_W/2, GOAL_H/2, 0); rightPost.castShadow = true; group.add(rightPost);
-      const cross = new THREE.Mesh(new THREE.CylinderGeometry(postR, postR, GOAL_W, 12), postMat); cross.rotation.z = Math.PI / 2; cross.position.set(0, GOAL_H, 0); cross.castShadow = true; group.add(cross);
-      const net = new THREE.Mesh(new THREE.PlaneGeometry(GOAL_W, GOAL_H), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15, side: THREE.DoubleSide })); net.position.set(0, GOAL_H/2, zPos > 0 ? -1 : 1); group.add(net);
-      group.position.z = zPos; return group;
+    function saveData() {
+      localStorage.setItem('bluelock_data', JSON.stringify(playerData));
+      updateLobbyUI();
     }
-    scene.add(createGoal(-FIELD_L/2)); scene.add(createGoal(FIELD_L/2));
 
-    let leftLeg, rightLeg, leftArm, rightArm, playerGroup;
-    function createPlayer(color) {
-      const p = new THREE.Group();
-      const bodyMat = new THREE.MeshStandardMaterial({ color });
-      const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
-      const limbMat = new THREE.MeshStandardMaterial({ color: 0x1a5c1a });
+    function updateLobbyUI() {
+      document.getElementById('lobby-name').textContent = playerData.username || "Khách";
+      document.getElementById('lobby-rank').textContent = "Rank: " + playerData.rank;
+      document.getElementById('lobby-lv').textContent = "Lv: " + playerData.level;
+      document.getElementById('lobby-gold').textContent = "🪙 " + playerData.gold.toLocaleString();
+      document.getElementById('lobby-gem').textContent = "💎 " + playerData.gem.toLocaleString();
+      document.getElementById('lobby-evo').textContent = "🌑 " + playerData.evoStone.toLocaleString();
       
-      const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), skinMat); head.position.y = 2.4; head.castShadow = true; p.add(head);
-      const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-      const lEye = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.05), eyeMat); lEye.position.set(-0.2, 2.45, 0.41); p.add(lEye);
-      const rEye = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.05), eyeMat); rEye.position.set(0.2, 2.45, 0.41); p.add(rEye);
-      const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.2, 0.5), bodyMat); body.position.y = 1.4; body.castShadow = true; p.add(body);
+      // Xử lý hiển thị Admin Menu
+      const adminPanel = document.getElementById('admin-menu-panel');
+      const banSection = document.getElementById('admin-ban-section');
       
-      const legGeo = new THREE.BoxGeometry(0.35, 1, 0.35);
-      leftLeg = new THREE.Group(); const lL = new THREE.Mesh(legGeo, limbMat); lL.position.y = -0.5; lL.castShadow = true; leftLeg.add(lL); leftLeg.position.set(-0.25, 0.8, 0); p.add(leftLeg);
-      rightLeg = new THREE.Group(); const rL = new THREE.Mesh(legGeo, limbMat); rL.position.y = -0.5; rL.castShadow = true; rightLeg.add(rL); rightLeg.position.set(0.25, 0.8, 0); p.add(rightLeg);
-      
-      const armGeo = new THREE.BoxGeometry(0.25, 1, 0.25);
-      leftArm = new THREE.Group(); const lA = new THREE.Mesh(armGeo, bodyMat); lA.position.y = -0.5; lA.castShadow = true; leftArm.add(lA); leftArm.position.set(-0.575, 2, 0); p.add(leftArm);
-      rightArm = new THREE.Group(); const rA = new THREE.Mesh(armGeo, bodyMat); rA.position.y = -0.5; rA.castShadow = true; rightArm.add(rA); rightArm.position.set(0.575, 2, 0); p.add(rightArm);
-      
-      playerGroup = p;
-      return p;
+      if (playerData.isAdmin) {
+        adminPanel.style.display = 'block';
+        // Nếu là admin gốc (root) thì hiện nút Ban
+        banSection.style.display = playerData.isRootAdmin ? 'block' : 'none';
+      } else {
+        adminPanel.style.display = 'none';
+      }
     }
-    const player = createPlayer(0x0066ff); player.position.set(0, 0, 20); scene.add(player);
 
-    const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.4, 24, 24), ballMat);
-    ball.castShadow = true; ball.position.set(0, 0.4, 0); scene.add(ball);
+    window.login = function() {
+      const user = document.getElementById('login-user').value.trim();
+      const pass = document.getElementById('login-pass').value;
+
+      if (user === 'admin' && pass === 'adminfb') {
+        playerData = { username: 'admin', isAdmin: true, isRootAdmin: true, gold: 999999, gem: 99999, evoStone: 9999, level: 1, rank: "Đồng 1", shootPowerLv: 0, speedLv: 0, ownedSkins: 0, ownedSkills: 0 };
+      } else if (user !== "") {
+        playerData.username = user;
+        playerData.isAdmin = false; playerData.isRootAdmin = false;
+      } else {
+        alert("Vui lòng nhập tên!"); return;
+      }
+      
+      saveData();
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('lobby-screen').style.display = 'flex';
+      
+      if (playerData.isAdmin) showNotification("Quyền Admin", "Chào Admin! Menu điều khiển đã xuất hiện ở góc phải.");
+    };
+
+    window.showTab = function(tabId) {
+      document.querySelectorAll('.content-area').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.add('active');
+    };
+
+    window.toggleModes = function() {
+      const modes = document.getElementById('mode-selection');
+      modes.style.display = modes.style.display === 'flex' ? 'none' : 'flex';
+    };
+
+    // ==========================================
+    // 2. ADMIN ACTIONS (CẬP NHẬT MỚI)
+    // ==========================================
+    window.adminAction = function(action) {
+      if (!playerData.isAdmin) return;
+
+      switch(action) {
+        case 'gold': playerData.gold += 100000; break;
+        case 'gem': playerData.gem += 10000; break;
+        case 'evo': playerData.evoStone += 1000; break;
+        
+        case 'full_skin':
+          playerData.ownedSkins = 99;
+          showNotification("Admin", "Đã mua TOÀN BỘ Skin trong game!");
+          break;
+        
+        case 'full_skill':
+          playerData.ownedSkills = 99;
+          showNotification("Admin", "Đã mở khóa TOÀN BỘ Kỹ năng thức tỉnh!");
+          break;
+        
+        case 'full_stats':
+          playerData.shootPowerLv = 99;
+          playerData.speedLv = 99;
+          showNotification("Admin", "Đã nâng MAX Tốc độ và Lực sút!");
+          break;
+        
+        case 'max_all':
+          playerData.level = 100;
+          playerData.rank = "Bậc Thầy";
+          playerData.shootPowerLv = 99;
+          playerData.speedLv = 99;
+          showNotification("Admin", "Đã nâng MAX Level (100) và Rank (Bậc Thầy)!");
+          break;
+        
+        case 'ban':
+          showNotification("HỆ THỐNG BAN", "Đã BAN người chơi thành công. Họ sẽ bị đá văng ra ngoài màn hình đăng nhập!");
+          // Hiệu ứng chớp đỏ
+          document.body.style.background = 'red';
+          setTimeout(() => document.body.style.background = '#111', 200);
+          break;
+      }
+      saveData();
+    };
+
+    // ==========================================
+    // 3. SHOP & GACHA (BASIC)
+    // ==========================================
+    window.buyItem = function(type, cost) {
+      if (playerData.gem >= cost) {
+        playerData.gem -= cost;
+        if (type === 'shoot') playerData.shootPowerLv++;
+        if (type === 'speed') playerData.speedLv++;
+        if (type === 'skin') playerData.ownedSkins++;
+        saveData();
+        showNotification("Thành công", "Bạn đã mua thành công vật phẩm!");
+      } else {
+        showNotification("Thất bại", "Bạn không đủ Kim Cương!");
+      }
+    };
+
+    window.rollGacha = function(type) {
+      let cost = type === 'normal' ? 1000 : 50;
+      let currency = type === 'normal' ? 'gold' : 'gem';
+
+      if (playerData[currency] >= cost) {
+        playerData[currency] -= cost;
+        const rewards = ["100 Vàng", "10 Kim Cương", "Skin Cơ Bản", "Kỹ Năng Rê Bóng Xịn"];
+        const result = rewards[Math.floor(Math.random() * rewards.length)];
+        showNotification("Kết quả vòng quay", "Chúc mừng bạn nhận được: " + result);
+        saveData();
+      } else {
+        showNotification("Thất bại", "Không đủ tài nguyên để quay!");
+      }
+    };
+
+    window.sendChat = function() {
+      const input = document.getElementById('chat-input');
+      if (input.value.trim() !== '') {
+        const msg = document.createElement('div');
+        msg.innerHTML = `<b style="color:#00aaff">${playerData.username}:</b> ${input.value}`;
+        document.getElementById('chat-messages').appendChild(msg);
+        document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
+        input.value = '';
+      }
+    };
+
+    function showNotification(title, desc) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-desc').textContent = desc;
+      document.getElementById('modal-notify').style.display = 'flex';
+    }
+
+    loadData();
+
+    // ==========================================
+    // 4. GAME 3D LOGIC (GIỮ NGUYÊN TỪ BẢN TRƯỚC)
+    // ==========================================
+    let scene, camera, renderer;
+    let player, ball;
+    let leftLeg, rightLeg, leftArm, rightArm;
+    let keys = {};
+    let isPlaying = false;
+    let lastTime = 0;
     
-    const ballCanvas = document.createElement('canvas'); ballCanvas.width = 256; ballCanvas.height = 256;
-    const ctx = ballCanvas.getContext('2d'); ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 256, 256); ctx.fillStyle = 'black';
-    for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.arc(Math.random()*256, Math.random()*256, 20, 0, Math.PI*2); ctx.fill(); }
-    ballMat.map = new THREE.CanvasTexture(ballCanvas);
+    const ballPhysics = { velocity: new THREE.Vector3(), radius: 0.4, isControlled: false, gravity: -20 };
+    const playerState = { velocityY: 0, isJumping: false, isBicycle: false, bicycleTimer: 0 };
 
-    // VẬT LÝ & TRẠNG THÁI CẦU THỦ
-    const playerState = {
-      velocityY: 0,
-      isJumping: false,
-      isBicycleKick: false,
-      bicycleTimer: 0,
-      bicycleTriggered: false,
-      canJump: true
+    window.startGame = function(mode) {
+      document.getElementById('lobby-screen').style.display = 'none';
+      document.getElementById('hud').style.display = 'block';
+      document.getElementById('hud-player-name').textContent = playerData.username + " (Lv." + playerData.level + ")";
+      isPlaying = true;
+      init3D();
+      animate();
     };
 
-    const ballPhysics = { 
-      velocity: new THREE.Vector3(0, 0, 0), 
-      radius: 0.4, 
-      friction: 0.985, 
-      bounce: 0.6, 
-      gravity: -20, 
-      isControlled: false,
-      shotType: 'none',
-      
-      isCurving: false, curveTime: 0, curveDuration: 1.2, curveAmount: 0,
-      startPos: new THREE.Vector3(), targetPos: new THREE.Vector3(),
+    function init3D() {
+      if (renderer) return; 
 
-      isKnuckle: false, knuckleTime: 0, trailActive: false
-    };
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x87ceeb);
+      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      document.getElementById('game-container').appendChild(renderer.domElement);
 
-    const keys = {};
-    let kickTimer = 0; 
-    let dribbleCooldown = 0;
-    let chargePower = 0; 
-    let isCharging = false;
-    const statusEl = document.getElementById('status');
-    const powerBarContainer = document.getElementById('powerBarContainer');
-    const powerBar = document.getElementById('powerBar');
-    const shotTypeIndicator = document.getElementById('shotTypeIndicator');
+      scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+      const sun = new THREE.DirectionalLight(0xffffff, 1);
+      sun.position.set(30, 50, 30); sun.castShadow = true; scene.add(sun);
 
-    document.addEventListener('keydown', e => {
-      if (e.code === 'Space') { e.preventDefault(); } 
-      
-      if (!keys[e.code]) {
-        // NHẢY BÌNH THƯỜNG (SPACE)
-        if (e.code === 'Space' && !playerState.isJumping && playerState.canJump) {
-          playerState.velocityY = 8;
-          playerState.isJumping = true;
-        }
+      const grass = new THREE.Mesh(new THREE.PlaneGeometry(80, 120), new THREE.MeshStandardMaterial({ color: 0x2d8a2d }));
+      grass.rotation.x = -Math.PI / 2; grass.receiveShadow = true; scene.add(grass);
 
-        // TÂNG BÓNG (L)
-        if (e.code === 'KeyL' && ballPhysics.isControlled) {
-          ballPhysics.isControlled = false;
-          ballPhysics.velocity.set(
-            Math.sin(player.rotation.y) * 2, // Nhích nhẹ về trước
-            12,                              // Lực tung lên cao
-            Math.cos(player.rotation.y) * 2
-          );
-        }
-
-        // SÚT (J)
-        if (e.code === 'KeyJ' && kickTimer <= 0) {
-          // NẾU BÓNG ĐANG Ở TRÊN KHÔNG VÀ BẤM J -> XE ĐẠP CHỔNG NGƯỢC
-          if (ball.position.y > 1.5 && !ballPhysics.isControlled && !playerState.isBicycleKick) {
-            playerState.isBicycleKick = true;
-            playerState.bicycleTimer = 0;
-            playerState.bicycleTriggered = false;
-            playerState.velocityY = 10; // Nhảy vọt lên không trung
-            playerState.isJumping = true;
-          } 
-          // NẾU ĐANG GIỮ BÓNG DƯỚI ĐẤT -> TÍCH LỰC SÚT
-          else if (ballPhysics.isControlled) {
-            isCharging = true; chargePower = 0; powerBarContainer.style.display = 'block';
-          }
-        }
-
-        // RÊ BÓNG (K)
-        if (e.code === 'KeyK' && ballPhysics.isControlled && kickTimer <= 0) {
-          if (keys['KeyW'] || keys['KeyA'] || keys['KeyS'] || keys['KeyD']) {
-            const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
-            ballPhysics.velocity.x = kickDir.x * 18; ballPhysics.velocity.z = kickDir.z * 18; ballPhysics.velocity.y = 0;
-            ballPhysics.isControlled = false; kickTimer = 0.2; dribbleCooldown = 0.4;
-          }
-        }
+      function addLine(x, z, w, l) {
+        const line = new THREE.Mesh(new THREE.PlaneGeometry(w, l), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        line.rotation.x = -Math.PI / 2; line.position.set(x, 0.01, z); scene.add(line);
       }
-      keys[e.code] = true;
-    });
+      addLine(0, 0, 80, 0.3); addLine(-40, 0, 0.3, 120); addLine(40, 0, 0.3, 120); addLine(0, -60, 80, 0.3); addLine(0, 60, 80, 0.3);
 
-    document.addEventListener('keyup', e => {
-      keys[e.code] = false;
-      
-      if (e.code === 'KeyJ' && isCharging) {
-        isCharging = false;
-        powerBarContainer.style.display = 'none';
-        shotTypeIndicator.style.display = 'none';
-        
-        const finalPower = 20 + (chargePower * 30);
-        const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
-        
-        ballPhysics.isControlled = false; 
-        ballPhysics.isCurving = false; ballPhysics.isKnuckle = false; ballPhysics.trailActive = false;
-        ballPhysics.shotType = 'normal';
-
-        // SÚT ĐẤT (Các chế độ như cũ)
-        if ((keys['KeyA'] || keys['KeyD']) && chargePower > 0.1) {
-          ballPhysics.shotType = 'curve';
-          let curveDir = keys['KeyA'] ? -1 : 1;
-          ballPhysics.isCurving = true; ballPhysics.curveTime = 0; ballPhysics.curveAmount = curveDir * 20; ballPhysics.startPos.copy(ball.position);
-          const curveSpeed = finalPower * 0.6; 
-          ballPhysics.targetPos.copy(ball.position).add(kickDir.clone().multiplyScalar(curveSpeed * 1.5));
-          ballPhysics.velocity.set(kickDir.x * curveSpeed, 5, kickDir.z * curveSpeed);
-          ballPhysics.trailActive = true;
-        } else if (keys['KeyS'] && chargePower > 0.1) {
-          ballPhysics.shotType = 'knuckle'; ballPhysics.isKnuckle = true; ballPhysics.knuckleTime = 0;
-          ballPhysics.velocity.set(kickDir.x * (finalPower * 1.5), 2 + chargePower * 2, kickDir.z * (finalPower * 1.5));
-          ballPhysics.trailActive = true;
-        } else if (keys['KeyW'] && chargePower > 0.1) {
-          ballPhysics.shotType = 'volley';
-          ballPhysics.velocity.set(kickDir.x * (finalPower * 0.8), 20 + (chargePower * 15), kickDir.z * (finalPower * 0.8));
-          ballPhysics.trailActive = true;
-        } else {
-          ballPhysics.velocity.x = kickDir.x * finalPower;
-          ballPhysics.velocity.z = kickDir.z * finalPower;
-          ballPhysics.velocity.y = 3 + (chargePower * 3);
-          if (chargePower > 0.5) ballPhysics.trailActive = true;
-        }
-
-        kickTimer = 0.4; dribbleCooldown = 0.6; chargePower = 0;
+      function createGoal(zPos) {
+        const group = new THREE.Group();
+        const mat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 5), mat); p1.position.set(-7, 2.5, 0); group.add(p1);
+        const p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 5), mat); p2.position.set(7, 2.5, 0); group.add(p2);
+        const p3 = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 14), mat); p3.rotation.z = Math.PI/2; p3.position.set(0, 5, 0); group.add(p3);
+        group.position.z = zPos; return group;
       }
-    });
+      scene.add(createGoal(-60)); scene.add(createGoal(60));
 
-    const playerSpeed = 12; const sprintMultiplier = 1.7;
-    let walkTime = 0; let spinTime = 0; 
-    const cameraOffset = new THREE.Vector3(0, 8, 12); const cameraTarget = new THREE.Vector3();
-    let score = { blue: 0, red: 0 }; let timeLeft = 90; let lastTime = performance.now();
+      const pGroup = new THREE.Group();
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0066ff });
+      const limbMat = new THREE.MeshStandardMaterial({ color: 0x1a5c1a });
 
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), skinMat); head.position.y = 2.4; head.castShadow = true; pGroup.add(head);
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.2, 0.5), bodyMat); body.position.y = 1.4; body.castShadow = true; pGroup.add(body);
+      
+      leftLeg = new THREE.Group(); leftLeg.add(new THREE.Mesh(new THREE.BoxGeometry(0.35, 1, 0.35), limbMat)); leftLeg.children[0].position.y = -0.5; leftLeg.position.set(-0.25, 0.8, 0); pGroup.add(leftLeg);
+      rightLeg = new THREE.Group(); rightLeg.add(new THREE.Mesh(new THREE.BoxGeometry(0.35, 1, 0.35), limbMat)); rightLeg.children[0].position.y = -0.5; rightLeg.position.set(0.25, 0.8, 0); pGroup.add(rightLeg);
+      
+      leftArm = new THREE.Group(); leftArm.add(new THREE.Mesh(new THREE.BoxGeometry(0.25, 1, 0.25), bodyMat)); leftArm.children[0].position.y = -0.5; leftArm.position.set(-0.575, 2, 0); pGroup.add(leftArm);
+      rightArm = new THREE.Group(); rightArm.add(new THREE.Mesh(new THREE.BoxGeometry(0.25, 1, 0.25), bodyMat)); rightArm.children[0].position.y = -0.5; rightArm.position.set(0.575, 2, 0); pGroup.add(rightArm);
+      
+      player = pGroup; player.position.set(0, 0, 20); scene.add(player);
+
+      const ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+      ball = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), ballMat);
+      ball.castShadow = true; ball.position.set(0, 0.4, 0); scene.add(ball);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 256; canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0,0,256,64);
+      ctx.fillStyle = 'white'; ctx.font = 'bold 24px Arial'; ctx.textAlign = 'center'; ctx.fillText(playerData.username + " [Tiền Đạo]", 128, 40);
+      const texture = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: texture });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(4, 1, 1); sprite.position.y = 3.5;
+      player.add(sprite);
+
+      document.addEventListener('keydown', e => {
+        if (!isPlaying) return;
+        keys[e.code] = true;
+        if (e.code === 'Space') {
+          if (!playerState.isJumping) { playerState.velocityY = 8; playerState.isJumping = true; }
+        }
+        if (e.code === 'KeyJ' && ball.position.y > 1.5 && !ballPhysics.isControlled && !playerState.isBicycle) {
+          playerState.isBicycle = true; playerState.bicycleTimer = 0; playerState.velocityY = 10; playerState.isJumping = true;
+        }
+      });
+      document.addEventListener('keyup', e => keys[e.code] = false);
+
+      lastTime = performance.now();
+    }
+
+    let isCharging = false; let chargePower = 0;
     function animate() {
+      if (!isPlaying) return;
       requestAnimationFrame(animate);
-      const now = performance.now(); const dt = Math.min((now - lastTime) / 1000, 0.05); lastTime = now;
-      updatePlayer(dt); updateBall(dt); updateCamera(dt); updateTimer(dt); checkGoals();
+      const now = performance.now();
+      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+
+      updatePlayer(dt, now);
+      updateBall(dt);
+      updateCamera();
+
       renderer.render(scene, camera);
     }
 
-    function updatePlayer(dt) {
-      const speed = keys['ShiftLeft'] ? playerSpeed * sprintMultiplier : playerSpeed;
+    function updatePlayer(dt, now) {
+      const speed = (12 + playerData.speedLv) * (keys['ShiftLeft'] ? 1.7 : 1);
       const dir = new THREE.Vector3();
       if (keys['KeyW']) dir.z -= 1; if (keys['KeyS']) dir.z += 1; if (keys['KeyA']) dir.x -= 1; if (keys['KeyD']) dir.x += 1;
-      const isMoving = dir.length() > 0; let moveDistance = 0;
+      
+      const isMoving = dir.length() > 0;
+      if (isMoving) {
+        dir.normalize();
+        player.position.x += dir.x * speed * dt;
+        player.position.z += dir.z * speed * dt;
+        player.rotation.y = THREE.MathUtils.lerp(player.rotation.y, Math.atan2(dir.x, dir.z), 0.2);
+        const swing = Math.sin(now * 0.01) * 0.8;
+        leftLeg.rotation.x = swing; rightLeg.rotation.x = -swing;
+        leftArm.rotation.x = -swing; rightArm.rotation.x = swing;
+      }
 
-      // TRỌNG LỰC CẦU THỦ (NHẢY)
-      playerState.velocityY += -25 * dt; // Trọng lực
+      playerState.velocityY += -25 * dt;
       player.position.y += playerState.velocityY * dt;
-      
-      if (player.position.y <= 0) {
-        player.position.y = 0;
-        playerState.velocityY = 0;
-        playerState.isJumping = false;
-      }
+      if (player.position.y <= 0) { player.position.y = 0; playerState.velocityY = 0; playerState.isJumping = false; }
 
-      if (isCharging) {
-        chargePower = Math.min(1, chargePower + dt * 1.5);
-        powerBar.style.width = (chargePower * 100) + '%';
-        shotTypeIndicator.style.display = 'block';
-        if (keys['KeyA']) { shotTypeIndicator.textContent = "SÚT XOÁY TRÁI"; shotTypeIndicator.style.color = "#00ffff"; }
-        else if (keys['KeyD']) { shotTypeIndicator.textContent = "SÚT XOÁY PHẢI"; shotTypeIndicator.style.color = "#00ffff"; }
-        else if (keys['KeyS']) { shotTypeIndicator.textContent = "SÚT SẤM SÉT"; shotTypeIndicator.style.color = "#ff3333"; }
-        else if (keys['KeyW']) { shotTypeIndicator.textContent = "SÚT BỔNG"; shotTypeIndicator.style.color = "#ffaa00"; }
-        else { shotTypeIndicator.textContent = "SÚT THƯỜNG"; shotTypeIndicator.style.color = "#ffffff"; }
-      }
-
-      const isSpinning = keys['KeyK'] && ballPhysics.isControlled && !isMoving && !playerState.isJumping;
-
-      // DI CHUYỂN & ANIMATION
-      if (isMoving && !isCharging && !playerState.isJumping) {
-        dir.normalize(); moveDistance = speed * dt; player.position.x += dir.x * moveDistance; player.position.z += dir.z * moveDistance;
-        const targetAngle = Math.atan2(dir.x, dir.z); player.rotation.y = THREE.MathUtils.lerp(player.rotation.y, targetAngle, 0.2);
-        walkTime += dt * speed * 1.5; const swing = Math.sin(walkTime) * 0.8;
-        leftLeg.rotation.x = swing; rightLeg.rotation.x = -swing; leftArm.rotation.x = -swing; rightArm.rotation.x = swing;
-        player.rotation.x = 0; // Reset lật người
-      } else if (playerState.isJumping) {
-        // Tư thế trên không
-        leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0.5, 0.2);
-        rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, -0.5, 0.2);
-        leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, -1, 0.2);
-        rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, -1, 0.2);
-      } else if (!isSpinning) {
-        leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.2); rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.2);
-        leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.2); rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.2);
-        player.rotation.x = THREE.MathUtils.lerp(player.rotation.x, 0, 0.1); // Từ từ đứng thẳng lại
-      }
-
-      // XỬ LÝ XE ĐẠP CHỔNG NGƯỢC
-      if (playerState.isBicycleKick) {
+      if (playerState.isBicycle) {
         playerState.bicycleTimer += dt;
-        
-        // Lật ngược người ra sau (Trục X)
         player.rotation.x = THREE.MathUtils.lerp(player.rotation.x, -Math.PI / 1.5, 0.2);
-        
-        // Chân đá liên hoàn (Xoay tròn)
-        const kickSpin = playerState.bicycleTimer * 20;
-        leftLeg.rotation.x = Math.sin(kickSpin) * 1.5;
-        rightLeg.rotation.x = -Math.sin(kickSpin) * 1.5;
-        leftArm.rotation.x = Math.cos(kickSpin) * 1.5;
-        rightArm.rotation.x = -Math.cos(kickSpin) * 1.5;
-
-        // Kích hoạt lực sút vào khoảng giây thứ 0.2 (Lúc chân vung lên cao nhất)
-        if (playerState.bicycleTimer > 0.15 && !playerState.bicycleTriggered) {
-          playerState.bicycleTriggered = true;
-          
-          // Sút bóng bay đi
+        const spin = playerState.bicycleTimer * 20;
+        leftLeg.rotation.x = Math.sin(spin) * 1.5; rightLeg.rotation.x = -Math.sin(spin) * 1.5;
+        if (playerState.bicycleTimer > 0.2 && ball.position.y > 0) {
           const kickDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
-          ballPhysics.velocity.x = kickDir.x * 40;
-          ballPhysics.velocity.z = kickDir.z * 40;
-          ballPhysics.velocity.y = 5; // Hơi chúc xuống
-          
+          ballPhysics.velocity.set(kickDir.x * 40, 5, kickDir.z * 40);
           ballPhysics.isControlled = false;
-          ballPhysics.trailActive = true;
-          ballPhysics.shotType = 'bicycle';
-          
-          flashScreen(0xffff00); // Chớp sáng vàng
-        }
-
-        // Kết thúc animation sau 1 giây
-        if (playerState.bicycleTimer > 1.0) {
-          playerState.isBicycleKick = false;
-          playerState.bicycleTriggered = false;
-          player.rotation.x = 0; // Đứng thẳng lại
+          playerState.isBicycle = false; player.rotation.x = 0;
         }
       }
 
-      const limitX = FIELD_W / 2 - 1; const limitZ = FIELD_L / 2 - 1;
-      player.position.x = THREE.MathUtils.clamp(player.position.x, -limitX, limitX); player.position.z = THREE.MathUtils.clamp(player.position.z, -limitZ, limitZ);
+      const dist = new THREE.Vector2(ball.position.x - player.position.x, ball.position.z - player.position.z).length();
+      if (!ballPhysics.isControlled && dist < 1.5 && ball.position.y < 1 && !playerState.isJumping) ballPhysics.isControlled = true;
       
-      if (kickTimer > 0) { kickTimer -= dt; }
-      if (dribbleCooldown > 0) dribbleCooldown -= dt;
-      
-      const ballPos2D = new THREE.Vector2(ball.position.x, ball.position.z); const playerPos2D = new THREE.Vector2(player.position.x, player.position.z);
-      const dist = ballPos2D.distanceTo(playerPos2D);
-      
-      const ballSpeed = ballPhysics.velocity.length();
-      
-      // Bắt bóng (Chỉ bắt khi bóng ở dưới đất, không nhảy, không xe đạp)
-      if (!ballPhysics.isControlled && dist < 1.5 && ball.position.y <= ballPhysics.radius + 0.1 && dribbleCooldown <= 0 && ballSpeed < 25 && !playerState.isJumping && !playerState.isBicycleKick) {
-        ballPhysics.isControlled = true; ballPhysics.velocity.set(0, 0, 0); ballPhysics.isCurving = false; ballPhysics.isKnuckle = false; ballPhysics.trailActive = false;
-      }
-
       if (ballPhysics.isControlled) {
-        statusEl.textContent = isSpinning ? "Đang đảo chân giữ bóng..." : "Trạng thái: Đang giữ bóng"; 
-        statusEl.style.color = "#00ff00";
+        const fwd = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
+        ball.position.lerp(player.position.clone().add(fwd.multiplyScalar(0.9)).setY(0.4), 0.3);
         
-        const forwardDir = new THREE.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
-        
-        if (isSpinning) {
-          spinTime += dt * 15;
-          leftLeg.rotation.x = Math.sin(spinTime) * 0.5; rightLeg.rotation.x = -Math.sin(spinTime) * 0.5;
-          leftArm.rotation.x = Math.cos(spinTime) * 0.3; rightArm.rotation.x = -Math.cos(spinTime) * 0.3;
-          
-          const ballOffset = new THREE.Vector3(Math.cos(spinTime * 0.8) * 0.6, ballPhysics.radius, Math.sin(spinTime * 0.8) * 0.6);
-          const targetBallPos = player.position.clone().add(forwardDir.multiplyScalar(0.5)).add(ballOffset);
-          ball.position.lerp(targetBallPos, 0.4);
-          
-        } else {
-          const targetBallPos = player.position.clone().add(forwardDir.multiplyScalar(0.9)); targetBallPos.y = ballPhysics.radius + player.position.y; // Bóng bay lên theo người khi nhảy
-          ball.position.lerp(targetBallPos, 0.3);
-          
-          if (isMoving) {
-            const axis = new THREE.Vector3(forwardDir.z, 0, -forwardDir.x).normalize();
-            ball.rotateOnWorldAxis(axis, (moveDistance / ballPhysics.radius) * 1.5);
+        if (keys['KeyJ'] && !isCharging) {
+          isCharging = true; chargePower = 0;
+          document.getElementById('powerBarContainer').style.display = 'block';
+        }
+        if (isCharging) {
+          chargePower = Math.min(1, chargePower + dt * 1.5);
+          document.getElementById('powerBar').style.width = (chargePower * 100) + '%';
+          if (!keys['KeyJ']) {
+            isCharging = false;
+            document.getElementById('powerBarContainer').style.display = 'none';
+            const power = (20 + (chargePower * 30)) + playerData.shootPowerLv * 2;
+            ballPhysics.velocity.set(fwd.x * power, 5, fwd.z * power);
+            ballPhysics.isControlled = false;
+            chargePower = 0;
           }
         }
-      } else {
-        statusEl.textContent = "Trạng thái: Chưa giữ bóng"; statusEl.style.color = "#ffeb3b";
       }
     }
 
     function updateBall(dt) {
-      if (ballPhysics.trailActive && !ballPhysics.isControlled) {
-        if (Math.random() > 0.4) {
-          const trailGeo = new THREE.SphereGeometry(0.15, 8, 8);
-          const trailMat = new THREE.MeshBasicMaterial({ 
-            color: ballPhysics.shotType === 'knuckle' ? 0xff3333 : (ballPhysics.shotType === 'bicycle' ? 0xffff00 : (ballPhysics.shotType === 'curve' ? 0x00ffff : 0xffffff)), 
-            transparent: true, opacity: 0.7 
-          });
-          const trailMesh = new THREE.Mesh(trailGeo, trailMat);
-          trailMesh.position.copy(ball.position);
-          scene.add(trailMesh);
-          setTimeout(() => { scene.remove(trailMesh); trailMesh.geometry.dispose(); trailMesh.material.dispose(); }, 300);
-        }
-      }
-
       if (!ballPhysics.isControlled) {
-        if (ballPhysics.isCurving) {
-          ballPhysics.curveTime += dt;
-          const t = Math.min(ballPhysics.curveTime / ballPhysics.curveDuration, 1);
-          const controlPoint = ballPhysics.startPos.clone().add(ballPhysics.targetPos).multiplyScalar(0.5);
-          controlPoint.y += 8; controlPoint.x += ballPhysics.curveAmount;
-
-          const pos = new THREE.Vector3();
-          pos.x = Math.pow(1-t, 2) * ballPhysics.startPos.x + 2*(1-t)*t*controlPoint.x + Math.pow(t, 2) * ballPhysics.targetPos.x;
-          pos.y = Math.pow(1-t, 2) * ballPhysics.startPos.y + 2*(1-t)*t*controlPoint.y + Math.pow(t, 2) * ballPhysics.targetPos.y;
-          pos.z = Math.pow(1-t, 2) * ballPhysics.startPos.z + 2*(1-t)*t*controlPoint.z + Math.pow(t, 2) * ballPhysics.targetPos.z;
-          
-          ball.position.lerp(pos, 0.5);
-          if (t >= 1) { ballPhysics.isCurving = false; ballPhysics.trailActive = false; }
-        } 
-        else if (ballPhysics.isKnuckle) {
-          ballPhysics.knuckleTime += dt;
-          ballPhysics.velocity.y += ballPhysics.gravity * dt;
-          ballPhysics.velocity.x += Math.sin(ballPhysics.knuckleTime * 40) * 20 * dt;
-          ballPhysics.velocity.z += Math.cos(ballPhysics.knuckleTime * 35) * 20 * dt;
-
-          ball.position.x += ballPhysics.velocity.x * dt; ball.position.y += ballPhysics.velocity.y * dt; ball.position.z += ballPhysics.velocity.z * dt;
-          if (ball.position.y < ballPhysics.radius) { ballPhysics.isKnuckle = false; ballPhysics.velocity.y = 0; ballPhysics.trailActive = false; }
-        }
-        else {
-          ballPhysics.velocity.y += ballPhysics.gravity * dt;
-          ball.position.x += ballPhysics.velocity.x * dt; ball.position.y += ballPhysics.velocity.y * dt; ball.position.z += ballPhysics.velocity.z * dt;
-          
-          if (ball.position.y < ballPhysics.radius) {
-            ball.position.y = ballPhysics.radius;
-            if (Math.abs(ballPhysics.velocity.y) > 1) ballPhysics.velocity.y = -ballPhysics.velocity.y * ballPhysics.bounce; else ballPhysics.velocity.y = 0;
-            ballPhysics.velocity.x *= ballPhysics.friction; ballPhysics.velocity.z *= ballPhysics.friction;
-            if (ballPhysics.velocity.y === 0) ballPhysics.trailActive = false;
-          }
-        }
-        
-        const limitX = FIELD_W / 2 - ballPhysics.radius; const limitZ = FIELD_L / 2 - ballPhysics.radius;
-        if (Math.abs(ball.position.x) > limitX) { ball.position.x = Math.sign(ball.position.x) * limitX; ballPhysics.velocity.x *= -0.7; }
-        if (Math.abs(ball.position.z) > limitZ && Math.abs(ball.position.x) > 7) { ball.position.z = Math.sign(ball.position.z) * limitZ; ballPhysics.velocity.z *= -0.7; }
-        
-        const speed = ballPhysics.velocity.length();
-        if (speed > 0.1) { 
-          const axis = new THREE.Vector3(ballPhysics.velocity.z, 0, -ballPhysics.velocity.x).normalize(); 
-          ball.rotateOnWorldAxis(axis, speed * dt * 0.5); 
+        ballPhysics.velocity.y += ballPhysics.gravity * dt;
+        ball.position.x += ballPhysics.velocity.x * dt;
+        ball.position.y += ballPhysics.velocity.y * dt;
+        ball.position.z += ballPhysics.velocity.z * dt;
+        if (ball.position.y < 0.4) {
+          ball.position.y = 0.4;
+          ballPhysics.velocity.y = -ballPhysics.velocity.y * 0.6;
+          ballPhysics.velocity.x *= 0.98; ballPhysics.velocity.z *= 0.98;
         }
       }
     }
 
-    function updateCamera(dt) {
-      // Camera nhích lên một chút khi cầu thủ nhảy
-      const targetY = 8 + (player.position.y * 0.5);
-      const targetPos = new THREE.Vector3(player.position.x + cameraOffset.x, targetY, player.position.z + cameraOffset.z);
-      camera.position.lerp(targetPos, 0.1); 
-      cameraTarget.set(player.position.x, player.position.y + 1, player.position.z); 
-      camera.lookAt(cameraTarget);
+    function updateCamera() {
+      camera.position.lerp(new THREE.Vector3(player.position.x, player.position.y + 8, player.position.z + 12), 0.1);
+      camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
     }
-    function updateTimer(dt) {
-      timeLeft -= dt / 6; if (timeLeft < 0) timeLeft = 0;
-      const min = Math.floor(timeLeft); const sec = Math.floor((timeLeft - min) * 60);
-      document.getElementById('timer').textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-    }
-    function checkGoals() {
-      const GOAL_LINE = FIELD_L / 2;
-      if (ball.position.z < -GOAL_LINE && Math.abs(ball.position.x) < 7) { score.blue++; resetBall(); updateScoreUI(); flashScreen(0x00aaff); }
-      if (ball.position.z > GOAL_LINE && Math.abs(ball.position.x) < 7) { score.red++; resetBall(); updateScoreUI(); flashScreen(0xff3333); }
-    }
-    function resetBall() { 
-      ball.position.set(0, ballPhysics.radius, 0); ballPhysics.velocity.set(0, 0, 0); 
-      ballPhysics.isControlled = false; ballPhysics.isCurving = false; ballPhysics.isKnuckle = false; ballPhysics.trailActive = false;
-      kickTimer = 0; dribbleCooldown = 0;
-      player.position.set(0, 0, 20); player.rotation.y = 0; player.rotation.x = 0; 
-      playerState.isJumping = false; playerState.isBicycleKick = false; playerState.velocityY = 0;
-    }
-    function updateScoreUI() { document.getElementById('score').textContent = `🔵 ${score.blue} - ${score.red} 🔴`; }
-    function flashScreen(color) {
-      const flash = document.createElement('div');
-      flash.style.cssText = `position: fixed; inset: 0; background: #${color.toString(16).padStart(6, '0')}; opacity: 0.5; pointer-events: none; z-index: 100; transition: opacity 0.5s;`;
-      document.body.appendChild(flash); setTimeout(() => flash.style.opacity = '0', 50); setTimeout(() => flash.remove(), 600);
-    }
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-    camera.position.set(0, 8, 32); animate();
   </script>
 </body>
 </html>
